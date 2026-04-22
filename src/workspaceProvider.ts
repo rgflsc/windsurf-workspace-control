@@ -55,11 +55,14 @@ export class TagGroupTreeItem extends vscode.TreeItem {
   constructor(
     public readonly tag: string,
     public readonly entries: SavedWorkspace[],
-    colorStore: TagColorStore
+    colorStore: TagColorStore,
+    collapsed = false
   ) {
     super(
       tag === UNTAGGED_LABEL ? UNTAGGED_LABEL : tag,
-      vscode.TreeItemCollapsibleState.Expanded
+      collapsed
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.Expanded
     );
     this.id = `tag:${tag.toLowerCase()}`;
     this.description = `${entries.length}`;
@@ -100,11 +103,18 @@ export class WorkspaceTreeProvider
 
   private readonly disposables: vscode.Disposable[] = [];
 
+  private groupsCollapsed = false;
+
   constructor(
     private readonly store: WorkspaceStore,
     private readonly filter: FilterState,
     private readonly colorStore: TagColorStore
   ) {
+    vscode.commands.executeCommand(
+      'setContext',
+      'workspaceControl.groupsCollapsed',
+      false
+    );
     this.disposables.push(
       store.onDidChange(() => this.fire()),
       filter.onDidChange(() => this.fire()),
@@ -126,6 +136,23 @@ export class WorkspaceTreeProvider
   }
 
   public refresh(): void {
+    this.fire();
+  }
+
+  public get areGroupsCollapsed(): boolean {
+    return this.groupsCollapsed;
+  }
+
+  public async setGroupsCollapsed(collapsed: boolean): Promise<void> {
+    if (this.groupsCollapsed === collapsed) {
+      return;
+    }
+    this.groupsCollapsed = collapsed;
+    await vscode.commands.executeCommand(
+      'setContext',
+      'workspaceControl.groupsCollapsed',
+      collapsed
+    );
     this.fire();
   }
 
@@ -172,7 +199,7 @@ export class WorkspaceTreeProvider
       }
       return roots;
     }
-    roots.push(...buildTagGroups(entries, this.colorStore, this.filter));
+    roots.push(...buildTagGroups(entries, this.colorStore, this.filter, this.groupsCollapsed));
     return roots;
   }
 }
@@ -192,7 +219,8 @@ export function isGroupByTagsEnabled(): boolean {
 function buildTagGroups(
   entries: SavedWorkspace[],
   colorStore: TagColorStore,
-  filter: FilterState
+  filter: FilterState,
+  collapsed: boolean
 ): TagGroupTreeItem[] {
   const activeFilterTags = new Set(filter.getActive());
   const byTag = new Map<string, SavedWorkspace[]>();
@@ -218,10 +246,10 @@ function buildTagGroups(
   }
   const groups = [...byTag.entries()]
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-    .map(([tag, list]) => new TagGroupTreeItem(tag, [...list].sort(byLabel), colorStore));
+    .map(([tag, list]) => new TagGroupTreeItem(tag, [...list].sort(byLabel), colorStore, collapsed));
   if (untagged.length > 0) {
     groups.push(
-      new TagGroupTreeItem(UNTAGGED_LABEL, [...untagged].sort(byLabel), colorStore)
+      new TagGroupTreeItem(UNTAGGED_LABEL, [...untagged].sort(byLabel), colorStore, collapsed)
     );
   }
   return groups;

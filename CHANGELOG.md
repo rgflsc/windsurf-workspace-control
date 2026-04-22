@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Botão **Expandir / Recolher** unificado no topo da view: mostra `collapse-all` quando os grupos estão expandidos e `expand-all` quando estão recolhidos. O comando altera o estado e a árvore é remontada com o `collapsibleState` correto.
+- Removido o botão Collapse All nativo do TreeView.
+- Comandos: `workspaceControl.expandAllGroups` e `workspaceControl.collapseAllGroups` (o antigo `workspaceControl.expandAll` foi removido).
+
 ## 0.4.0 — Favoritos, recentes e export/import
 
 - **Favoritos (pinados)**: novos comandos **Fixar no topo** / **Desafixar** no menu de contexto. Itens pinados aparecem primeiro em cada grupo (ou na lista plana) e ganham prefixo `★` no label + "pinado" na description.
