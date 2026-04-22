@@ -11,7 +11,9 @@ Extensão para **Windsurf** (e VS Code) que permite salvar e alternar rapidament
 - **Adicionar via diálogo**: escolha qualquer pasta ou arquivo `.code-workspace` do disco.
 - **Abrir nesta janela** ou **em nova janela** (configurável).
 - **Renomear, reordenar, remover** itens da lista.
-- **Renomear tag** ou **remover tag de todos os workspaces** pelo menu de contexto do grupo.
+- **Renomear tag**, **remover tag de todos os workspaces** e **definir cor da tag** pelo menu de contexto do grupo.
+- **Filtro por tag** direto na TreeView (multi-select) com indicador "Filtrando: ..." no topo.
+- **Status bar** mostra ícone + label + tags do workspace atual quando ele estiver salvo; clique abre o alternador.
 - **Revelar no explorador do SO**.
 - **Escopo de armazenamento** global (padrão) ou por workspace.
 
@@ -46,6 +48,9 @@ Depois instale via **"Extensions: Install from VSIX..."** apontando para o arqui
 | Editar tags de um workspace | Menu de contexto do item → **Editar tags...** (multi-select das tags existentes + criar novas) |
 | Alternar entre lista plana e agrupada | Botão **"list-tree"** no topo da view, ou **Workspace Control: Alternar agrupamento por tags** |
 | Renomear / remover tag globalmente | Menu de contexto do grupo de tag |
+| Definir cor da tag | Menu de contexto do grupo → **Definir cor da tag...** (10 cores de tema) |
+| Filtrar TreeView por tag | Botão **filter** no topo da view, ou **Workspace Control: Filtrar por tag...** |
+| Limpar filtro | Clique no indicador "Filtrando: ..." no topo, botão **clear-all**, ou **Workspace Control: Limpar filtro** |
 
 ## Configurações
 
@@ -54,6 +59,7 @@ Depois instale via **"Extensions: Install from VSIX..."** apontando para o arqui
 | `workspaceControl.defaultOpenBehavior` | `sameWindow`, `newWindow`, `ask` (padrão) | Como abrir um workspace quando clicado na lista. |
 | `workspaceControl.storageScope` | `global` (padrão), `workspace` | Onde salvar a lista: entre todas as janelas ou por workspace aberto. |
 | `workspaceControl.groupByTags` | `true` (padrão), `false` | Agrupa os itens por tag na view. Workspaces sem tag vão para "Untagged". |
+| `workspaceControl.showStatusBar` | `true` (padrão), `false` | Exibe um item na Status Bar com o workspace atual quando ele estiver salvo. |
 
 ## Desenvolvimento
 

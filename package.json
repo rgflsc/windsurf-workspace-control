@@ -1,8 +1,8 @@
 {
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
-  "description": "Salve, agrupe por tags e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.2.1",
+  "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
+  "version": "0.3.0",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -95,6 +95,26 @@
         "icon": "$(trash)"
       },
       {
+        "command": "workspaceControl.setTagColor",
+        "title": "Definir cor da tag...",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "workspaceControl.clearTagColor",
+        "title": "Remover cor da tag",
+        "icon": "$(circle-slash)"
+      },
+      {
+        "command": "workspaceControl.filterByTag",
+        "title": "Workspace Control: Filtrar por tag...",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "workspaceControl.clearFilter",
+        "title": "Workspace Control: Limpar filtro",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "workspaceControl.toggleGrouping",
         "title": "Workspace Control: Alternar agrupamento por tags",
         "icon": "$(list-tree)"
@@ -155,14 +175,24 @@
           "group": "navigation@3"
         },
         {
-          "command": "workspaceControl.toggleGrouping",
+          "command": "workspaceControl.filterByTag",
           "when": "view == workspaceControl.list",
           "group": "navigation@4"
         },
         {
+          "command": "workspaceControl.clearFilter",
+          "when": "view == workspaceControl.list && workspaceControl.filterActive",
+          "group": "navigation@5"
+        },
+        {
+          "command": "workspaceControl.toggleGrouping",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@6"
+        },
+        {
           "command": "workspaceControl.refresh",
           "when": "view == workspaceControl.list",
-          "group": "navigation@5"
+          "group": "navigation@7"
         }
       ],
       "view/item/context": [
@@ -207,9 +237,19 @@
           "group": "9_destructive@1"
         },
         {
-          "command": "workspaceControl.renameTag",
+          "command": "workspaceControl.setTagColor",
           "when": "view == workspaceControl.list && viewItem == tagGroup",
           "group": "1_modify@1"
+        },
+        {
+          "command": "workspaceControl.clearTagColor",
+          "when": "view == workspaceControl.list && viewItem == tagGroup",
+          "group": "1_modify@2"
+        },
+        {
+          "command": "workspaceControl.renameTag",
+          "when": "view == workspaceControl.list && viewItem == tagGroup",
+          "group": "1_modify@3"
         },
         {
           "command": "workspaceControl.deleteTag",
@@ -244,6 +284,11 @@
           "type": "boolean",
           "default": true,
           "description": "Agrupar os workspaces por tag na Activity Bar. Workspaces sem tag aparecem sob \"Untagged\"."
+        },
+        "workspaceControl.showStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Mostra um item na Status Bar com o label e tags do workspace atual, quando ele estiver salvo."
         }
       }
     }
