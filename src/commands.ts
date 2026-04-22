@@ -634,20 +634,7 @@ export function registerCommands(
       return;
     }
     const incoming = Array.isArray(payload.workspaces) ? payload.workspaces : [];
-    if (incoming.length === 0 && !payload.tagColors) {
-      vscode.window.showWarningMessage('Arquivo não contém workspaces nem cores.');
-      return;
-    }
-    const mode = await vscode.window.showQuickPick(
-      [
-        { label: 'Mesclar', description: 'Adiciona itens novos (ignora paths já existentes)', value: 'merge' },
-        { label: 'Substituir', description: 'Apaga a lista atual e substitui pelo arquivo', value: 'replace' }
-      ],
-      { placeHolder: 'Como importar?' }
-    );
-    if (!mode) {
-      return;
-    }
+    const hasTagColors = !!(payload.tagColors && typeof payload.tagColors === 'object' && Object.keys(payload.tagColors).length > 0);
     const sanitized: SavedWorkspace[] = incoming
       .filter((e) => e && typeof e.path === 'string' && typeof e.label === 'string' && (e.kind === 'folder' || e.kind === 'workspaceFile'))
       .map((e) => ({
@@ -659,12 +646,30 @@ export function registerCommands(
         tags: normalizeTags(e.tags),
         pinned: !!e.pinned
       }));
+    if (sanitized.length === 0 && !hasTagColors) {
+      vscode.window.showWarningMessage('Arquivo não contém workspaces nem cores.');
+      return;
+    }
+    let mode: { value: 'merge' | 'replace' } | undefined;
+    if (sanitized.length > 0) {
+      const pick = await vscode.window.showQuickPick(
+        [
+          { label: 'Mesclar', description: 'Adiciona itens novos (ignora paths já existentes)', value: 'merge' as const },
+          { label: 'Substituir', description: 'Apaga a lista atual e substitui pelo arquivo', value: 'replace' as const }
+        ],
+        { placeHolder: 'Como importar?' }
+      );
+      if (!pick) {
+        return;
+      }
+      mode = { value: pick.value };
+    }
     let addedCount = 0;
     let skippedCount = 0;
-    if (mode.value === 'replace') {
+    if (mode?.value === 'replace') {
       await store.setAll(sanitized);
       addedCount = sanitized.length;
-    } else {
+    } else if (mode?.value === 'merge') {
       const existing = store.getAll();
       const seenPaths = new Set(existing.map((e) => e.path));
       const merged = [...existing];
@@ -679,10 +684,14 @@ export function registerCommands(
       }
       await store.setAll(merged);
     }
-    if (payload.tagColors && typeof payload.tagColors === 'object') {
-      await colorStore.importMap(payload.tagColors, mode.value === 'replace');
+    if (hasTagColors) {
+      await colorStore.importMap(payload.tagColors as Record<string, string>, mode?.value === 'replace');
     }
-    if (mode.value === 'replace') {
+    if (!mode) {
+      vscode.window.showInformationMessage(
+        'Apenas as cores de tags foram importadas (o arquivo não continha workspaces).'
+      );
+    } else if (mode.value === 'replace') {
       vscode.window.showInformationMessage(
         `Lista substituída: ${addedCount} workspace(s).`
       );
