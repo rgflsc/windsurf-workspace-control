@@ -12,6 +12,14 @@ export interface SavedWorkspace {
   tags?: string[];
   /** When true, the workspace is pinned to the top of its group/flat list. */
   pinned?: boolean;
+  /** When true, the workspace is hidden from the tree/QuickPick unless
+   *  the "Show archived" toggle is active. */
+  archived?: boolean;
+  /** Free-form user notes shown in the hover tooltip. */
+  notes?: string;
+  /** Optional palette color id (see tagColorStore.TAG_COLOR_OPTIONS) used to
+   *  tint the editor's UI (titleBar + activityBar) while the workspace is open. */
+  color?: string;
 }
 
 export const UNTAGGED = '__untagged__';

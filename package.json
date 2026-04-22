@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -188,7 +188,71 @@
         "command": "workspaceControl.revealInExplorer",
         "title": "Revelar no explorador do SO",
         "icon": "$(folder)"
-      }
+      },
+      {
+        "command": "workspaceControl.archive",
+        "title": "Arquivar",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "workspaceControl.unarchive",
+        "title": "Desarquivar",
+        "icon": "$(inbox)"
+      },
+      {
+        "command": "workspaceControl.showArchived",
+        "title": "Workspace Control: Mostrar arquivados",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "workspaceControl.hideArchived",
+        "title": "Workspace Control: Ocultar arquivados",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "workspaceControl.editNotes",
+        "title": "Editar notas...",
+        "icon": "$(note)"
+      },
+      {
+        "command": "workspaceControl.discoverFromFolder",
+        "title": "Workspace Control: Auto-descobrir workspaces em pasta...",
+        "icon": "$(search-fuzzy)"
+      },
+      {
+        "command": "workspaceControl.openAllInTag",
+        "title": "Abrir todos em novas janelas",
+        "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "workspaceControl.reopenLast",
+        "title": "Workspace Control: Reabrir último workspace",
+        "icon": "$(history)"
+      },
+      {
+        "command": "workspaceControl.openExternalTerminal",
+        "title": "Abrir terminal externo aqui",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "workspaceControl.setWorkspaceColor",
+        "title": "Definir cor do workspace...",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "workspaceControl.clearWorkspaceColor",
+        "title": "Remover cor do workspace",
+        "icon": "$(circle-slash)"
+      },
+      { "command": "workspaceControl.openFavorite1", "title": "Workspace Control: Abrir favorito 1" },
+      { "command": "workspaceControl.openFavorite2", "title": "Workspace Control: Abrir favorito 2" },
+      { "command": "workspaceControl.openFavorite3", "title": "Workspace Control: Abrir favorito 3" },
+      { "command": "workspaceControl.openFavorite4", "title": "Workspace Control: Abrir favorito 4" },
+      { "command": "workspaceControl.openFavorite5", "title": "Workspace Control: Abrir favorito 5" },
+      { "command": "workspaceControl.openFavorite6", "title": "Workspace Control: Abrir favorito 6" },
+      { "command": "workspaceControl.openFavorite7", "title": "Workspace Control: Abrir favorito 7" },
+      { "command": "workspaceControl.openFavorite8", "title": "Workspace Control: Abrir favorito 8" },
+      { "command": "workspaceControl.openFavorite9", "title": "Workspace Control: Abrir favorito 9" }
     ],
     "keybindings": [
       {
@@ -200,7 +264,21 @@
         "command": "workspaceControl.openRecent",
         "key": "ctrl+alt+r",
         "mac": "cmd+alt+r"
-      }
+      },
+      {
+        "command": "workspaceControl.reopenLast",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
+      },
+      { "command": "workspaceControl.openFavorite1", "key": "ctrl+alt+1", "mac": "cmd+alt+1" },
+      { "command": "workspaceControl.openFavorite2", "key": "ctrl+alt+2", "mac": "cmd+alt+2" },
+      { "command": "workspaceControl.openFavorite3", "key": "ctrl+alt+3", "mac": "cmd+alt+3" },
+      { "command": "workspaceControl.openFavorite4", "key": "ctrl+alt+4", "mac": "cmd+alt+4" },
+      { "command": "workspaceControl.openFavorite5", "key": "ctrl+alt+5", "mac": "cmd+alt+5" },
+      { "command": "workspaceControl.openFavorite6", "key": "ctrl+alt+6", "mac": "cmd+alt+6" },
+      { "command": "workspaceControl.openFavorite7", "key": "ctrl+alt+7", "mac": "cmd+alt+7" },
+      { "command": "workspaceControl.openFavorite8", "key": "ctrl+alt+8", "mac": "cmd+alt+8" },
+      { "command": "workspaceControl.openFavorite9", "key": "ctrl+alt+9", "mac": "cmd+alt+9" }
     ],
     "menus": {
       "view/title": [
@@ -260,9 +338,34 @@
           "group": "navigation@9"
         },
         {
+          "command": "workspaceControl.showArchived",
+          "when": "view == workspaceControl.list && !workspaceControl.archivedVisible",
+          "group": "navigation@10"
+        },
+        {
+          "command": "workspaceControl.hideArchived",
+          "when": "view == workspaceControl.list && workspaceControl.archivedVisible",
+          "group": "navigation@10"
+        },
+        {
+          "command": "workspaceControl.discoverFromFolder",
+          "when": "view == workspaceControl.list",
+          "group": "overflow@1"
+        },
+        {
+          "command": "workspaceControl.exportJson",
+          "when": "view == workspaceControl.list",
+          "group": "overflow@2"
+        },
+        {
+          "command": "workspaceControl.importJson",
+          "when": "view == workspaceControl.list",
+          "group": "overflow@3"
+        },
+        {
           "command": "workspaceControl.refresh",
           "when": "view == workspaceControl.list",
-          "group": "navigation@10"
+          "group": "overflow@9"
         }
       ],
       "view/item/context": [
@@ -297,9 +400,39 @@
           "group": "1_modify@2"
         },
         {
+          "command": "workspaceControl.editNotes",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
+          "group": "1_modify@3"
+        },
+        {
+          "command": "workspaceControl.setWorkspaceColor",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
+          "group": "1_modify@4"
+        },
+        {
+          "command": "workspaceControl.clearWorkspaceColor",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
+          "group": "1_modify@5"
+        },
+        {
+          "command": "workspaceControl.archive",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/ && !(viewItem =~ /\\.archived/)",
+          "group": "1_modify@6"
+        },
+        {
+          "command": "workspaceControl.unarchive",
+          "when": "view == workspaceControl.list && viewItem =~ /\\.archived/",
+          "group": "1_modify@6"
+        },
+        {
           "command": "workspaceControl.revealInExplorer",
           "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "2_reveal@1"
+        },
+        {
+          "command": "workspaceControl.openExternalTerminal",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
+          "group": "2_reveal@2"
         },
         {
           "command": "workspaceControl.remove",
@@ -325,6 +458,11 @@
           "command": "workspaceControl.deleteTag",
           "when": "view == workspaceControl.list && viewItem == tagGroup",
           "group": "9_destructive@1"
+        },
+        {
+          "command": "workspaceControl.openAllInTag",
+          "when": "view == workspaceControl.list && viewItem == tagGroup",
+          "group": "inline@1"
         }
       ]
     },
