@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- Ordenação consistente na TreeView:
+  - Modo agrupado: grupos em ordem alfabética de tag; dentro de cada grupo, workspaces em ordem alfabética de nome.
+  - Modo flat: workspaces em ordem alfabética de nome.
+- Comandos **Mover para cima/baixo** ficam sem efeito visível enquanto a ordenação automática estiver ativa (ainda alteram a ordem interna de armazenamento).
+
 ## 0.3.2
 
 - Removido o toast informativo ao alternar o agrupamento por tags — a mudança já é visível na própria lista.
