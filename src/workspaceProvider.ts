@@ -122,6 +122,12 @@ export class WorkspaceTreeProvider
     return element;
   }
 
+  public getParent(_element: WorkspaceTreeNode): WorkspaceTreeNode | undefined {
+    // Only used by TreeView.reveal; we treat groups and indicators as roots
+    // and do not need parent resolution for child workspace items.
+    return undefined;
+  }
+
   public getChildren(element?: WorkspaceTreeNode): WorkspaceTreeNode[] {
     if (element instanceof TagGroupTreeItem) {
       return element.entries.map((e) => new WorkspaceTreeItem(e, this.colorStore));

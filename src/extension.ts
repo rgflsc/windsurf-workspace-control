@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(view, store, colorStore, filter, provider, statusBar);
 
-  registerCommands(context, store, colorStore, filter);
+  registerCommands(context, store, colorStore, filter, provider, view);
 }
 
 export function deactivate(): void {

@@ -3,7 +3,12 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
-import { TagGroupTreeItem, WorkspaceTreeItem } from './workspaceProvider';
+import {
+  TagGroupTreeItem,
+  WorkspaceTreeItem,
+  WorkspaceTreeNode,
+  WorkspaceTreeProvider
+} from './workspaceProvider';
 import { TagColorStore, TAG_COLOR_OPTIONS } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
 
@@ -137,7 +142,9 @@ export function registerCommands(
   context: vscode.ExtensionContext,
   store: WorkspaceStore,
   colorStore: TagColorStore,
-  filter: FilterState
+  filter: FilterState,
+  provider: WorkspaceTreeProvider,
+  view: vscode.TreeView<WorkspaceTreeNode>
 ): void {
   const register = (cmd: string, handler: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(cmd, handler));
@@ -490,6 +497,19 @@ export function registerCommands(
       return;
     }
     await colorStore.clear(tag);
+  });
+
+  register('workspaceControl.expandAll', async () => {
+    const roots = await Promise.resolve(provider.getChildren());
+    for (const node of roots) {
+      if (node instanceof TagGroupTreeItem) {
+        try {
+          await view.reveal(node, { expand: true, select: false, focus: false });
+        } catch {
+          // reveal may throw if the item was stale; ignore and continue.
+        }
+      }
+    }
   });
 }
 
