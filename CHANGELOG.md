@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- TreeView agora recarrega automaticamente ao alternar `workspaceControl.groupByTags` (ou `workspaceControl.storageScope`), seja via comando/botão ou editando as configurações manualmente.
+
 ## 0.2.0 — Tags & grupos
 
 - Novo campo `tags` por workspace (normalizado, case-insensitive, sem duplicatas).
