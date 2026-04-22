@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -208,42 +208,42 @@
       "view/item/context": [
         {
           "command": "workspaceControl.openInSameWindow",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "inline@1"
         },
         {
           "command": "workspaceControl.openInNewWindow",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "inline@2"
         },
         {
           "command": "workspaceControl.editTags",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "1_modify@1"
         },
         {
           "command": "workspaceControl.rename",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "1_modify@2"
         },
         {
           "command": "workspaceControl.moveUp",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "1_modify@3"
         },
         {
           "command": "workspaceControl.moveDown",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "1_modify@4"
         },
         {
           "command": "workspaceControl.revealInExplorer",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "2_reveal@1"
         },
         {
           "command": "workspaceControl.remove",
-          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "9_destructive@1"
         },
         {
