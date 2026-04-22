@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5
+
+- Fix: itens inline (abrir nesta/nova janela) e menus de contexto voltam a aparecer também no workspace marcado como "atual". As cláusulas `viewItem == workspaceEntry` passaram para regex `viewItem =~ /^workspaceEntry/`, cobrindo tanto `workspaceEntry` quanto `workspaceEntry.current`.
+
 ## 0.3.4
 
 - Marcação "● atual" no workspace aberto na sessão atual: prefixo **●** no label e texto "atual  •  ..." no início da descrição. A cor da tag (se houver) é preservada.
