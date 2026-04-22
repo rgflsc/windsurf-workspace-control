@@ -1,15 +1,14 @@
 import * as vscode from 'vscode';
-import { SavedWorkspace } from './types';
+import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
-import { GitStatusCache } from './gitStatus';
+import { TagColorStore } from './tagColorStore';
 import { findCurrentEntry } from './currentWorkspace';
 
 /**
- * Manages a StatusBarItem showing only the git branch / dirty state of the
- * currently-open saved workspace. The item is hidden when:
- *  - the feature is disabled via `workspaceControl.showStatusBar`;
- *  - the open workspace is not in the saved list; or
- *  - the workspace is not a git repository.
+ * Status bar item for the currently-open saved workspace. Shows only the
+ * workspace label, colored with the ThemeColor of its first tag (when set).
+ * Hidden when the open workspace is not in the saved list, or when
+ * `workspaceControl.showStatusBar` is disabled.
  */
 export class StatusBarManager implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
@@ -17,20 +16,20 @@ export class StatusBarManager implements vscode.Disposable {
 
   constructor(
     private readonly store: WorkspaceStore,
-    private readonly gitStatus: GitStatusCache
+    private readonly colorStore: TagColorStore
   ) {
     this.item = vscode.window.createStatusBarItem(
       'workspaceControl.status',
       vscode.StatusBarAlignment.Left,
       100
     );
-    this.item.name = 'Workspace Control — Git';
+    this.item.name = 'Workspace Control';
     this.item.command = 'workspaceControl.quickSwitch';
 
     const refresh = (): void => this.refresh();
     this.disposables.push(
       store.onDidChange(refresh),
-      gitStatus.onDidChange(refresh),
+      colorStore.onDidChange(refresh),
       vscode.workspace.onDidChangeWorkspaceFolders(refresh),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('workspaceControl.showStatusBar')) {
@@ -56,14 +55,12 @@ export class StatusBarManager implements vscode.Disposable {
       return;
     }
 
-    const git = this.gitStatus.get(match);
-    if (!git) {
-      this.item.hide();
-      return;
-    }
+    const tags = normalizeTags(match.tags);
+    const color = tags.length > 0 ? this.colorStore.getThemeColor(tags[0]) : undefined;
 
-    this.item.text = `$(git-branch) ${git.branch}${git.dirty ? '●' : ''}`;
-    this.item.tooltip = buildTooltip(match, git.branch, git.dirty);
+    this.item.text = match.label;
+    this.item.color = color;
+    this.item.tooltip = buildTooltip(match);
     this.item.show();
   }
 
@@ -75,13 +72,6 @@ export class StatusBarManager implements vscode.Disposable {
   }
 }
 
-function buildTooltip(entry: SavedWorkspace, branch: string, dirty: boolean): string {
-  const lines = [
-    `Workspace atual: ${entry.label}`,
-    entry.path,
-    `Git: ${branch}${dirty ? ' (modificado)' : ''}`,
-    '',
-    'Clique para alternar workspace'
-  ];
-  return lines.join('\n');
+function buildTooltip(entry: SavedWorkspace): string {
+  return [`Workspace atual: ${entry.label}`, entry.path, '', 'Clique para alternar workspace'].join('\n');
 }
