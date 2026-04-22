@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Novo botão **Expandir todos os grupos** (`$(expand-all)`) no topo da view, complementando o Collapse All nativo. Disponível apenas quando o agrupamento por tag estiver ativo.
+
 ## 0.3.0 — Status bar, filtro e cores
 
 - **Status bar**: item à esquerda mostra ícone + label + tags do workspace atual (quando ele estiver salvo). Clique abre o QuickPick de alternar. Config `workspaceControl.showStatusBar` (default `true`).
