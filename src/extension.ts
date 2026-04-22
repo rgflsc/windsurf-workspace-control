@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const search = new SearchState();
   const gitStatus = new GitStatusCache();
   const provider = new WorkspaceTreeProvider(store, filter, colorStore, search, gitStatus);
-  const statusBar = new StatusBarManager(store, gitStatus);
+  const statusBar = new StatusBarManager(store, colorStore);
 
   const view = vscode.window.createTreeView('workspaceControl.list', {
     treeDataProvider: provider,

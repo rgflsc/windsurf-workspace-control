@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+
+- Status bar agora exibe **apenas o nome do workspace** colorido com a cor da primeira tag (quando houver). Sem ícone de pasta, sem git, sem sufixo de tags. Oculto quando o workspace atual não está na lista salva ou `showStatusBar` está desligado.
+
 ## 0.5.3
 
 - Tooltip dos itens da árvore enxuto: removidos o nome/label, `Tipo:`, `Tags:` e `Nome do item:`. Mantidos apenas path, git, marcadores de pinado/atual e último acesso.
