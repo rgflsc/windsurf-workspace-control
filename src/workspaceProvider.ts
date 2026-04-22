@@ -15,11 +15,14 @@ const CURRENT_MARK = '● ';
 const PINNED_MARK = '★ ';
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
+  public readonly sourceGroupTag: string | null;
+
   constructor(
     public readonly entry: SavedWorkspace,
     colorStore: TagColorStore,
     isCurrent = false,
-    git: GitInfo | null = null
+    git: GitInfo | null = null,
+    sourceGroupTag: string | null = null
   ) {
     const isPinned = !!entry.pinned;
     const prefix = `${isPinned ? PINNED_MARK : ''}${isCurrent ? CURRENT_MARK : ''}`;
@@ -47,6 +50,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
       title: 'Abrir',
       arguments: [entry]
     };
+    this.sourceGroupTag = sourceGroupTag;
   }
 }
 
@@ -211,6 +215,7 @@ export class WorkspaceTreeProvider
   public getChildren(element?: WorkspaceTreeNode): WorkspaceTreeNode[] {
     const currentId = findCurrentEntry(this.store)?.id;
     if (element instanceof TagGroupTreeItem) {
+      const sourceTag = element.tag === UNTAGGED_LABEL ? null : element.tag;
       return [...element.entries]
         .sort(byLabel)
         .map(
@@ -219,7 +224,8 @@ export class WorkspaceTreeProvider
               e,
               this.colorStore,
               e.id === currentId,
-              this.gitStatus.get(e)
+              this.gitStatus.get(e),
+              sourceTag
             )
         );
     }
@@ -261,13 +267,13 @@ export class WorkspaceTreeProvider
     source: readonly WorkspaceTreeNode[],
     dataTransfer: vscode.DataTransfer
   ): void {
-    const ids = source
+    const payload = source
       .filter((n): n is WorkspaceTreeItem => n instanceof WorkspaceTreeItem)
-      .map((n) => n.entry.id);
-    if (ids.length === 0) {
+      .map((n) => ({ id: n.entry.id, sourceTag: n.sourceGroupTag }));
+    if (payload.length === 0) {
       return;
     }
-    dataTransfer.set(DRAG_MIME, new vscode.DataTransferItem(JSON.stringify(ids)));
+    dataTransfer.set(DRAG_MIME, new vscode.DataTransferItem(JSON.stringify(payload)));
   }
 
   public async handleDrop(
@@ -278,26 +284,82 @@ export class WorkspaceTreeProvider
     if (!item) {
       return;
     }
-    let ids: string[];
+    let payload: Array<{ id: string; sourceTag: string | null }>;
     try {
-      ids = JSON.parse(await item.asString());
+      payload = parseDragPayload(await item.asString());
     } catch {
       return;
     }
-    if (!Array.isArray(ids) || ids.length === 0) {
+    if (payload.length === 0) {
       return;
     }
     const targetTag = dropTargetTag(target);
     if (targetTag === undefined) {
       return;
     }
-    for (const id of ids) {
+    for (const { id, sourceTag } of payload) {
       const entry = this.store.get(id);
       if (!entry) continue;
-      const nextTags = targetTag === null ? [] : [targetTag];
+      const nextTags = computeDroppedTags(
+        normalizeTags(entry.tags),
+        sourceTag,
+        targetTag
+      );
       await this.store.update(id, { tags: nextTags });
     }
   }
+}
+
+function parseDragPayload(
+  raw: string
+): Array<{ id: string; sourceTag: string | null }> {
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  const out: Array<{ id: string; sourceTag: string | null }> = [];
+  for (const item of parsed) {
+    if (item && typeof item === 'object' && typeof (item as { id: unknown }).id === 'string') {
+      const sourceTag = (item as { sourceTag: unknown }).sourceTag;
+      out.push({
+        id: (item as { id: string }).id,
+        sourceTag: typeof sourceTag === 'string' ? sourceTag : null
+      });
+    }
+  }
+  return out;
+}
+
+function computeDroppedTags(
+  currentTags: string[],
+  sourceTag: string | null,
+  targetTag: string | null
+): string[] {
+  if (targetTag === null) {
+    return [];
+  }
+  if (currentTags.length === 0) {
+    return normalizeTags([targetTag]);
+  }
+  const sourceLower = sourceTag?.toLowerCase();
+  const targetLower = targetTag.toLowerCase();
+  if (sourceLower) {
+    const replaced = currentTags.map((t) =>
+      t.toLowerCase() === sourceLower ? targetTag : t
+    );
+    if (!replaced.some((t) => t.toLowerCase() === sourceLower)) {
+      return normalizeTags(replaced);
+    }
+    if (!currentTags.some((t) => t.toLowerCase() === sourceLower)) {
+      replaced.push(targetTag);
+    }
+    return normalizeTags(replaced);
+  }
+  if (currentTags.some((t) => t.toLowerCase() === targetLower)) {
+    return normalizeTags(currentTags);
+  }
+  const [, ...rest] = currentTags;
+  return normalizeTags([targetTag, ...rest]);
 }
 
 function dropTargetTag(target: WorkspaceTreeNode | undefined): string | null | undefined {
