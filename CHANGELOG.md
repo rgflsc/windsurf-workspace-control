@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Fix: botão de expandir/recolher agora realmente abre e fecha os grupos. O VS Code cacheia o estado de expand/collapse pelo `id` do TreeItem, então só trocar `collapsibleState` ao refrescar não surte efeito. Passamos a incluir o estado (`c`/`e`) no `id`, forçando o tree a instanciar um novo item com o `collapsibleState` correto.
+
 ## 0.4.1
 
 - Botão **Expandir / Recolher** unificado no topo da view: mostra `collapse-all` quando os grupos estão expandidos e `expand-all` quando estão recolhidos. O comando altera o estado e a árvore é remontada com o `collapsibleState` correto.

@@ -64,7 +64,7 @@ export class TagGroupTreeItem extends vscode.TreeItem {
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.Expanded
     );
-    this.id = `tag:${tag.toLowerCase()}`;
+    this.id = `tag:${collapsed ? 'c' : 'e'}:${tag.toLowerCase()}`;
     this.description = `${entries.length}`;
     this.contextValue = tag === UNTAGGED_LABEL ? 'untaggedGroup' : 'tagGroup';
     const iconId = tag === UNTAGGED_LABEL ? 'question' : 'tag';
