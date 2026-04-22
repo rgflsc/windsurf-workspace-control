@@ -1,8 +1,8 @@
 {
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
-  "description": "Salve e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.1.0",
+  "description": "Salve, agrupe por tags e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
+  "version": "0.2.0",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -20,6 +20,7 @@
     "workspace",
     "switcher",
     "multi-root",
+    "tags",
     "productivity"
   ],
   "activationEvents": [
@@ -79,6 +80,26 @@
         "icon": "$(empty-window)"
       },
       {
+        "command": "workspaceControl.editTags",
+        "title": "Editar tags...",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "workspaceControl.renameTag",
+        "title": "Renomear tag...",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "workspaceControl.deleteTag",
+        "title": "Remover tag de todos os workspaces...",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "workspaceControl.toggleGrouping",
+        "title": "Workspace Control: Alternar agrupamento por tags",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "workspaceControl.rename",
         "title": "Renomear",
         "icon": "$(edit)"
@@ -134,9 +155,14 @@
           "group": "navigation@3"
         },
         {
-          "command": "workspaceControl.refresh",
+          "command": "workspaceControl.toggleGrouping",
           "when": "view == workspaceControl.list",
           "group": "navigation@4"
+        },
+        {
+          "command": "workspaceControl.refresh",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -151,19 +177,24 @@
           "group": "inline@2"
         },
         {
-          "command": "workspaceControl.rename",
+          "command": "workspaceControl.editTags",
           "when": "view == workspaceControl.list && viewItem == workspaceEntry",
           "group": "1_modify@1"
         },
         {
-          "command": "workspaceControl.moveUp",
+          "command": "workspaceControl.rename",
           "when": "view == workspaceControl.list && viewItem == workspaceEntry",
           "group": "1_modify@2"
         },
         {
-          "command": "workspaceControl.moveDown",
+          "command": "workspaceControl.moveUp",
           "when": "view == workspaceControl.list && viewItem == workspaceEntry",
           "group": "1_modify@3"
+        },
+        {
+          "command": "workspaceControl.moveDown",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "1_modify@4"
         },
         {
           "command": "workspaceControl.revealInExplorer",
@@ -173,6 +204,16 @@
         {
           "command": "workspaceControl.remove",
           "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "9_destructive@1"
+        },
+        {
+          "command": "workspaceControl.renameTag",
+          "when": "view == workspaceControl.list && viewItem == tagGroup",
+          "group": "1_modify@1"
+        },
+        {
+          "command": "workspaceControl.deleteTag",
+          "when": "view == workspaceControl.list && viewItem == tagGroup",
           "group": "9_destructive@1"
         }
       ]
@@ -198,6 +239,11 @@
           ],
           "default": "global",
           "description": "Onde salvar a lista de workspaces: global (todas as janelas) ou por workspace atual."
+        },
+        "workspaceControl.groupByTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Agrupar os workspaces por tag na Activity Bar. Workspaces sem tag aparecem sob \"Untagged\"."
         }
       }
     }

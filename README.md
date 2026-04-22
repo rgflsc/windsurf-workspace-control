@@ -5,11 +5,13 @@ Extensão para **Windsurf** (e VS Code) que permite salvar e alternar rapidament
 ## Funcionalidades
 
 - **Lista persistente de workspaces** na Activity Bar ("Workspace Control").
-- **Alternador rápido** com `Ctrl+Alt+W` (`Cmd+Alt+W` no macOS) — QuickPick com busca por nome e caminho.
+- **Tags de agrupamento**: cada workspace pode ter múltiplas tags livres (ex.: `cliente-acme`, `backend`, `pessoal`). A view agrupa automaticamente por tag e mostra "Untagged" para os sem tag.
+- **Alternador rápido** com `Ctrl+Alt+W` (`Cmd+Alt+W` no macOS) — QuickPick com busca por nome, caminho e tags.
 - **Adicionar workspace atual** a qualquer momento (funciona com pasta simples ou `.code-workspace` multi-root).
 - **Adicionar via diálogo**: escolha qualquer pasta ou arquivo `.code-workspace` do disco.
 - **Abrir nesta janela** ou **em nova janela** (configurável).
 - **Renomear, reordenar, remover** itens da lista.
+- **Renomear tag** ou **remover tag de todos os workspaces** pelo menu de contexto do grupo.
 - **Revelar no explorador do SO**.
 - **Escopo de armazenamento** global (padrão) ou por workspace.
 
@@ -41,6 +43,9 @@ Depois instale via **"Extensions: Install from VSIX..."** apontando para o arqui
 | Salvar workspace atual | Botão `+` no topo da view, ou comando **Workspace Control: Salvar workspace atual** |
 | Adicionar pasta/arquivo qualquer | Botão de pasta no topo da view, ou **Adicionar workspace a partir de pasta/arquivo...** |
 | Renomear / remover / reordenar | Menu de contexto em cada item da lista |
+| Editar tags de um workspace | Menu de contexto do item → **Editar tags...** (multi-select das tags existentes + criar novas) |
+| Alternar entre lista plana e agrupada | Botão **"list-tree"** no topo da view, ou **Workspace Control: Alternar agrupamento por tags** |
+| Renomear / remover tag globalmente | Menu de contexto do grupo de tag |
 
 ## Configurações
 
@@ -48,6 +53,7 @@ Depois instale via **"Extensions: Install from VSIX..."** apontando para o arqui
 |-------|---------|-----------|
 | `workspaceControl.defaultOpenBehavior` | `sameWindow`, `newWindow`, `ask` (padrão) | Como abrir um workspace quando clicado na lista. |
 | `workspaceControl.storageScope` | `global` (padrão), `workspace` | Onde salvar a lista: entre todas as janelas ou por workspace aberto. |
+| `workspaceControl.groupByTags` | `true` (padrão), `false` | Agrupa os itens por tag na view. Workspaces sem tag vão para "Untagged". |
 
 ## Desenvolvimento
 
