@@ -130,7 +130,9 @@ export class WorkspaceTreeProvider
 
   public getChildren(element?: WorkspaceTreeNode): WorkspaceTreeNode[] {
     if (element instanceof TagGroupTreeItem) {
-      return element.entries.map((e) => new WorkspaceTreeItem(e, this.colorStore));
+      return [...element.entries]
+        .sort(byLabel)
+        .map((e) => new WorkspaceTreeItem(e, this.colorStore));
     }
     if (element) {
       return [];
@@ -145,7 +147,8 @@ export class WorkspaceTreeProvider
     }
 
     if (!isGroupByTagsEnabled()) {
-      for (const entry of entries) {
+      const sorted = [...entries].sort(byLabel);
+      for (const entry of sorted) {
         roots.push(new WorkspaceTreeItem(entry, this.colorStore));
       }
       return roots;
@@ -153,6 +156,10 @@ export class WorkspaceTreeProvider
     roots.push(...buildTagGroups(entries, this.colorStore, this.filter));
     return roots;
   }
+}
+
+function byLabel(a: SavedWorkspace, b: SavedWorkspace): number {
+  return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
 }
 
 export function isGroupByTagsEnabled(): boolean {
@@ -190,9 +197,11 @@ function buildTagGroups(
   }
   const groups = [...byTag.entries()]
     .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-    .map(([tag, list]) => new TagGroupTreeItem(tag, list, colorStore));
+    .map(([tag, list]) => new TagGroupTreeItem(tag, [...list].sort(byLabel), colorStore));
   if (untagged.length > 0) {
-    groups.push(new TagGroupTreeItem(UNTAGGED_LABEL, untagged, colorStore));
+    groups.push(
+      new TagGroupTreeItem(UNTAGGED_LABEL, [...untagged].sort(byLabel), colorStore)
+    );
   }
   return groups;
 }
