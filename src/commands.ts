@@ -659,28 +659,39 @@ export function registerCommands(
         tags: normalizeTags(e.tags),
         pinned: !!e.pinned
       }));
+    let addedCount = 0;
+    let skippedCount = 0;
     if (mode.value === 'replace') {
       await store.setAll(sanitized);
+      addedCount = sanitized.length;
     } else {
       const existing = store.getAll();
       const seenPaths = new Set(existing.map((e) => e.path));
       const merged = [...existing];
       for (const e of sanitized) {
-        if (!seenPaths.has(e.path)) {
-          merged.push({ ...e, id: newId() });
-          seenPaths.add(e.path);
+        if (seenPaths.has(e.path)) {
+          skippedCount++;
+          continue;
         }
+        merged.push({ ...e, id: newId() });
+        seenPaths.add(e.path);
+        addedCount++;
       }
       await store.setAll(merged);
     }
     if (payload.tagColors && typeof payload.tagColors === 'object') {
       await colorStore.importMap(payload.tagColors, mode.value === 'replace');
     }
-    vscode.window.showInformationMessage(
-      mode.value === 'replace'
-        ? `Lista substituída: ${sanitized.length} workspace(s).`
-        : `Importados ${sanitized.length} workspace(s) (novos, sem duplicatas).`
-    );
+    if (mode.value === 'replace') {
+      vscode.window.showInformationMessage(
+        `Lista substituída: ${addedCount} workspace(s).`
+      );
+    } else {
+      const skipSuffix = skippedCount > 0 ? ` (${skippedCount} ignorado(s) por já existirem)` : '';
+      vscode.window.showInformationMessage(
+        `Importados ${addedCount} workspace(s)${skipSuffix}.`
+      );
+    }
   });
 }
 
