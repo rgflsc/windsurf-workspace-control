@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- **Status bar enxuto**: agora mostra apenas o branch + indicador de modificado (●) do workspace atual. Se o workspace não for um repositório git (ou não estiver salvo), o item fica oculto. Removidos label, ícone de pasta e tags coloridas do status bar.
+
 ## 0.5.0 — Busca, drag & drop, git status
 
 - **Busca incremental** na TreeView: novo botão `$(search)` e comando `workspaceControl.search` abrem um InputBox; a busca filtra por substring no `label`/`path` (case-insensitive) e combina com o filtro por tag. Indicador "Buscando: ..." no topo, clicável para limpar.
