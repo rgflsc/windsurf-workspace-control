@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
-import { SavedWorkspace, normalizeTags } from './types';
+import { SavedWorkspace } from './types';
 import { WorkspaceStore } from './workspaceStore';
-import { TagColorStore } from './tagColorStore';
+import { GitStatusCache } from './gitStatus';
 import { findCurrentEntry } from './currentWorkspace';
 
 /**
- * Manages a StatusBarItem that reflects the currently-open workspace
- * (matched against the saved list by path) with its label and tags.
+ * Manages a StatusBarItem showing only the git branch / dirty state of the
+ * currently-open saved workspace. The item is hidden when:
+ *  - the feature is disabled via `workspaceControl.showStatusBar`;
+ *  - the open workspace is not in the saved list; or
+ *  - the workspace is not a git repository.
  */
 export class StatusBarManager implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
@@ -14,20 +17,20 @@ export class StatusBarManager implements vscode.Disposable {
 
   constructor(
     private readonly store: WorkspaceStore,
-    private readonly colorStore: TagColorStore
+    private readonly gitStatus: GitStatusCache
   ) {
     this.item = vscode.window.createStatusBarItem(
       'workspaceControl.status',
       vscode.StatusBarAlignment.Left,
       100
     );
-    this.item.name = 'Workspace Control';
+    this.item.name = 'Workspace Control — Git';
     this.item.command = 'workspaceControl.quickSwitch';
 
     const refresh = (): void => this.refresh();
     this.disposables.push(
       store.onDidChange(refresh),
-      colorStore.onDidChange(refresh),
+      gitStatus.onDidChange(refresh),
       vscode.workspace.onDidChangeWorkspaceFolders(refresh),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('workspaceControl.showStatusBar')) {
@@ -53,14 +56,14 @@ export class StatusBarManager implements vscode.Disposable {
       return;
     }
 
-    const tags = normalizeTags(match.tags);
-    const iconId = match.kind === 'workspaceFile' ? 'multiple-windows' : 'folder';
-    const color = tags.length > 0 ? this.colorStore.getThemeColor(tags[0]) : undefined;
+    const git = this.gitStatus.get(match);
+    if (!git) {
+      this.item.hide();
+      return;
+    }
 
-    const tagSuffix = tags.length > 0 ? `  ${tags.map((t) => `#${t}`).join(' ')}` : '';
-    this.item.text = `$(${iconId}) ${match.label}${tagSuffix}`;
-    this.item.color = color;
-    this.item.tooltip = buildTooltip(match, tags);
+    this.item.text = `$(git-branch) ${git.branch}${git.dirty ? '●' : ''}`;
+    this.item.tooltip = buildTooltip(match, git.branch, git.dirty);
     this.item.show();
   }
 
@@ -72,11 +75,13 @@ export class StatusBarManager implements vscode.Disposable {
   }
 }
 
-function buildTooltip(entry: SavedWorkspace, tags: readonly string[]): string {
-  const lines = [`Workspace atual: ${entry.label}`, entry.path];
-  if (tags.length > 0) {
-    lines.push(`Tags: ${tags.join(', ')}`);
-  }
-  lines.push('', 'Clique para alternar workspace');
+function buildTooltip(entry: SavedWorkspace, branch: string, dirty: boolean): string {
+  const lines = [
+    `Workspace atual: ${entry.label}`,
+    entry.path,
+    `Git: ${branch}${dirty ? ' (modificado)' : ''}`,
+    '',
+    'Clique para alternar workspace'
+  ];
   return lines.join('\n');
 }
