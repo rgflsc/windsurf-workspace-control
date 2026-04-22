@@ -377,11 +377,6 @@ export function registerCommands(
     const cfg = vscode.workspace.getConfiguration('workspaceControl');
     const current = cfg.get<boolean>('groupByTags', true);
     await cfg.update('groupByTags', !current, vscode.ConfigurationTarget.Global);
-    vscode.window.showInformationMessage(
-      !current
-        ? 'Agrupamento por tag ativado.'
-        : 'Agrupamento por tag desativado (lista plana).'
-    );
   });
 
   register('workspaceControl.remove', async (arg: unknown) => {

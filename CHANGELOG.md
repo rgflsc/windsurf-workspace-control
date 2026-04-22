@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Removido o toast informativo ao alternar o agrupamento por tags — a mudança já é visível na própria lista.
+
 ## 0.3.1
 
 - Novo botão **Expandir todos os grupos** (`$(expand-all)`) no topo da view, complementando o Collapse All nativo. Disponível apenas quando o agrupamento por tag estiver ativo.
