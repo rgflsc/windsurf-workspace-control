@@ -1,4 +1,3 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
@@ -438,7 +437,7 @@ function buildTooltip(
   isPinned: boolean,
   git: GitInfo | null
 ): string {
-  const lines = [entry.label, entry.path, `Tipo: ${entry.kind}`];
+  const lines: string[] = [entry.path];
   if (isPinned) {
     lines.push('★ Pinado (aparece sempre no topo)');
   }
@@ -448,13 +447,8 @@ function buildTooltip(
   if (git) {
     lines.push(`Git: ${git.branch}${git.dirty ? ' (modificado)' : ''}`);
   }
-  const tags = normalizeTags(entry.tags);
-  if (tags.length > 0) {
-    lines.push(`Tags: ${tags.join(', ')}`);
-  }
   if (entry.lastOpenedAt) {
     lines.push(`Último acesso: ${new Date(entry.lastOpenedAt).toLocaleString()}`);
   }
-  lines.push(`Nome do item: ${path.basename(entry.path)}`);
   return lines.join('\n');
 }
