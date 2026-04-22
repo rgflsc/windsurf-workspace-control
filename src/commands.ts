@@ -1,3 +1,4 @@
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -13,6 +14,8 @@ import { TagColorStore, TAG_COLOR_OPTIONS } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
 import { SearchState } from './searchState';
 import { GitStatusCache } from './gitStatus';
+import { ArchivedVisibilityState } from './archivedState';
+import { WORKSPACE_COLOR_OPTIONS, applyCurrentWorkspaceColor } from './workspaceColor';
 
 type OpenMode = 'sameWindow' | 'newWindow' | 'ask';
 
@@ -148,7 +151,8 @@ export function registerCommands(
   provider: WorkspaceTreeProvider,
   _view: vscode.TreeView<WorkspaceTreeNode>,
   search: SearchState,
-  gitStatus: GitStatusCache
+  gitStatus: GitStatusCache,
+  archivedVisibility: ArchivedVisibilityState
 ): void {
   const register = (cmd: string, handler: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(cmd, handler));
@@ -179,7 +183,9 @@ export function registerCommands(
   });
 
   register('workspaceControl.quickSwitch', async () => {
-    const items = store.getAll();
+    const items = store
+      .getAll()
+      .filter((e) => archivedVisibility.isVisible || !e.archived);
     if (items.length === 0) {
       const pickAdd = await vscode.window.showInformationMessage(
         'Nenhum workspace salvo. Deseja adicionar um agora?',
@@ -529,7 +535,7 @@ export function registerCommands(
   register('workspaceControl.openRecent', async () => {
     const items = store
       .getAll()
-      .filter((e) => !!e.lastOpenedAt)
+      .filter((e) => !!e.lastOpenedAt && (archivedVisibility.isVisible || !e.archived))
       .sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''));
     if (items.length === 0) {
       vscode.window.showInformationMessage(
@@ -647,7 +653,14 @@ export function registerCommands(
         kind: e.kind,
         lastOpenedAt: typeof e.lastOpenedAt === 'string' ? e.lastOpenedAt : undefined,
         tags: normalizeTags(e.tags),
-        pinned: !!e.pinned
+        pinned: !!e.pinned,
+        archived: !!e.archived,
+        notes: typeof e.notes === 'string' ? e.notes : undefined,
+        color:
+          typeof e.color === 'string' &&
+          WORKSPACE_COLOR_OPTIONS.some((o) => o.id === e.color)
+            ? e.color
+            : undefined
       }));
     if (sanitized.length === 0 && !hasTagColors) {
       vscode.window.showWarningMessage('Arquivo não contém workspaces nem cores.');
@@ -705,6 +718,329 @@ export function registerCommands(
       );
     }
   });
+
+  register('workspaceControl.archive', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    await store.update(entry.id, { archived: true });
+  });
+
+  register('workspaceControl.unarchive', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    await store.update(entry.id, { archived: false });
+  });
+
+  register('workspaceControl.showArchived', async () => {
+    await archivedVisibility.set(true);
+  });
+
+  register('workspaceControl.hideArchived', async () => {
+    await archivedVisibility.set(false);
+  });
+
+  register('workspaceControl.editNotes', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    const value = await vscode.window.showInputBox({
+      prompt: `Notas para "${entry.label}" (apareceu no tooltip)`,
+      value: entry.notes ?? '',
+      placeHolder: 'Ex.: credenciais em .env.local, rodar npm run dev...'
+    });
+    if (value === undefined) {
+      return;
+    }
+    const trimmed = value.trim();
+    await store.update(entry.id, { notes: trimmed.length > 0 ? trimmed : undefined });
+  });
+
+  register('workspaceControl.discoverFromFolder', async () => {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: 'Escanear',
+      title: 'Escolha a pasta-base (subpastas com .git ou .code-workspace serão sugeridas)'
+    });
+    if (!picked || picked.length === 0) {
+      return;
+    }
+    const base = picked[0].fsPath;
+    const found = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: `Escaneando ${path.basename(base)}...` },
+      () => discoverWorkspaces(base)
+    );
+    if (found.length === 0) {
+      vscode.window.showInformationMessage('Nenhum workspace encontrado.');
+      return;
+    }
+    const existingPaths = new Set(store.getAll().map((e) => e.path));
+    const fresh = found.filter((f) => !existingPaths.has(f.path));
+    if (fresh.length === 0) {
+      vscode.window.showInformationMessage(
+        `Todos os ${found.length} workspace(s) encontrados já estão na lista.`
+      );
+      return;
+    }
+    type Item = vscode.QuickPickItem & { target: DiscoveredWorkspace };
+    const items: Item[] = fresh.map((f) => ({
+      label: f.label,
+      description: f.kind === 'workspaceFile' ? 'Arquivo .code-workspace' : 'Pasta com .git',
+      detail: f.path,
+      picked: true,
+      target: f
+    }));
+    const picks = await vscode.window.showQuickPick(items, {
+      placeHolder: `Selecione os workspaces a adicionar (${fresh.length} novo(s))`,
+      canPickMany: true
+    });
+    if (!picks || picks.length === 0) {
+      return;
+    }
+    const tags = await pickTags(store, [], 'Tags para os workspaces importados (opcional)');
+    let added = 0;
+    for (const pick of picks) {
+      try {
+        await store.add({
+          id: newId(),
+          label: pick.target.label,
+          path: pick.target.path,
+          kind: pick.target.kind,
+          tags: tags && tags.length > 0 ? tags : undefined
+        });
+        added++;
+      } catch {
+        // ignore duplicates
+      }
+    }
+    vscode.window.showInformationMessage(`Adicionado(s) ${added} workspace(s).`);
+  });
+
+  register('workspaceControl.openAllInTag', async (arg: unknown) => {
+    const tag = coerceTag(arg);
+    if (!tag) {
+      return;
+    }
+    const tagLower = tag.toLowerCase();
+    const items = store
+      .getAll()
+      .filter((e) => !e.archived && normalizeTags(e.tags).some((t) => t.toLowerCase() === tagLower));
+    if (items.length === 0) {
+      vscode.window.showInformationMessage(`Nenhum workspace com a tag #${tag}.`);
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Abrir ${items.length} workspace(s) de #${tag} em novas janelas?`,
+      { modal: true },
+      'Abrir'
+    );
+    if (confirm !== 'Abrir') {
+      return;
+    }
+    for (const entry of items) {
+      await store.touch(entry.id);
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(entry.path), {
+        forceNewWindow: true
+      });
+      await sleep(250);
+    }
+  });
+
+  for (let slot = 1; slot <= 9; slot++) {
+    const slotNumber = slot;
+    register(`workspaceControl.openFavorite${slotNumber}`, async () => {
+      const pinned = store
+        .getAll()
+        .filter((e) => e.pinned && !e.archived)
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+        );
+      const entry = pinned[slotNumber - 1];
+      if (!entry) {
+        vscode.window.showInformationMessage(
+          `Nenhum favorito no slot ${slotNumber} (pinados alfabeticamente).`
+        );
+        return;
+      }
+      await openEntry(store, entry);
+    });
+  }
+
+  register('workspaceControl.reopenLast', async () => {
+    const last = store
+      .getAll()
+      .filter((e) => !!e.lastOpenedAt && !e.archived)
+      .sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0];
+    if (!last) {
+      vscode.window.showInformationMessage('Sem workspace recente.');
+      return;
+    }
+    await openEntry(store, last);
+  });
+
+  register('workspaceControl.openExternalTerminal', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    const cwd = await resolveTerminalCwd(entry);
+    if (!cwd) {
+      vscode.window.showWarningMessage('Caminho do workspace não existe mais.');
+      return;
+    }
+    try {
+      openExternalTerminalAt(cwd);
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Falha ao abrir terminal: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  });
+
+  register('workspaceControl.setWorkspaceColor', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      WORKSPACE_COLOR_OPTIONS.map((opt) => ({
+        label: opt.label,
+        description: opt.id === (entry.color ?? 'none') ? '(atual)' : opt.hex ?? '',
+        value: opt.id
+      })),
+      { placeHolder: `Cor do workspace "${entry.label}"` }
+    );
+    if (!pick) {
+      return;
+    }
+    await store.update(entry.id, { color: pick.value === 'none' ? undefined : pick.value });
+    await applyCurrentWorkspaceColor(store);
+  });
+
+  register('workspaceControl.clearWorkspaceColor', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    await store.update(entry.id, { color: undefined });
+    await applyCurrentWorkspaceColor(store);
+  });
+}
+
+interface DiscoveredWorkspace {
+  label: string;
+  path: string;
+  kind: SavedWorkspace['kind'];
+}
+
+async function discoverWorkspaces(base: string): Promise<DiscoveredWorkspace[]> {
+  const out: DiscoveredWorkspace[] = [];
+  try {
+    const entries = await fs.promises.readdir(base, { withFileTypes: true });
+    for (const dirent of entries) {
+      const child = path.join(base, dirent.name);
+      if (dirent.isDirectory()) {
+        const gitPath = path.join(child, '.git');
+        if (await exists(gitPath)) {
+          out.push({ label: dirent.name, path: child, kind: 'folder' });
+        }
+      } else if (dirent.isFile() && dirent.name.endsWith('.code-workspace')) {
+        out.push({
+          label: dirent.name.replace(/\.code-workspace$/, ''),
+          path: child,
+          kind: 'workspaceFile'
+        });
+      }
+    }
+  } catch {
+    // ignore unreadable directories
+  }
+  return out.sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+  );
+}
+
+async function exists(p: string): Promise<boolean> {
+  try {
+    await fs.promises.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveTerminalCwd(entry: SavedWorkspace): Promise<string | undefined> {
+  if (!(await exists(entry.path))) {
+    return undefined;
+  }
+  if (entry.kind === 'workspaceFile') {
+    return path.dirname(entry.path);
+  }
+  return entry.path;
+}
+
+function openExternalTerminalAt(cwd: string): void {
+  const platform = process.platform;
+  if (platform === 'darwin') {
+    spawn('open', ['-a', 'Terminal', cwd], { detached: true, stdio: 'ignore' }).unref();
+    return;
+  }
+  if (platform === 'win32') {
+    // Spawn cmd.exe directly with `cwd` so we avoid Node's MSVC-style quoting
+    // (which cmd.exe does not understand) — no argument escaping required.
+    spawn('cmd.exe', [], {
+      detached: true,
+      stdio: 'ignore',
+      cwd
+    }).unref();
+    return;
+  }
+  // Linux / *BSD — try a few common terminal emulators in order.
+  const candidates: Array<[string, string[]]> = [
+    ['x-terminal-emulator', ['--working-directory', cwd]],
+    ['gnome-terminal', ['--working-directory', cwd]],
+    ['konsole', ['--workdir', cwd]],
+    ['xfce4-terminal', [`--working-directory=${cwd}`]],
+    ['alacritty', ['--working-directory', cwd]],
+    ['kitty', ['--directory', cwd]],
+    ['xterm', ['-e', `cd '${cwd.replace(/'/g, "'\\''")}' && $SHELL`]]
+  ];
+  for (const [cmd, args] of candidates) {
+    if (!isCommandOnPath(cmd)) {
+      continue;
+    }
+    try {
+      spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref();
+      return;
+    } catch {
+      // try next
+    }
+  }
+  throw new Error('Nenhum emulador de terminal encontrado no PATH.');
+}
+
+function isCommandOnPath(cmd: string): boolean {
+  // `spawn` emits 'error' asynchronously when a command is missing, so the
+  // try/catch loop above can't detect "not found" on its own. Use a synchronous
+  // lookup via `command -v` (POSIX) to pick the first installed candidate.
+  try {
+    const result = spawnSync('sh', ['-c', `command -v "${cmd.replace(/"/g, '\\"')}"`], {
+      stdio: 'ignore'
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function addWorkspaceWithPrompts(

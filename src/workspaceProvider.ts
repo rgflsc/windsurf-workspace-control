@@ -5,6 +5,7 @@ import { TagColorStore } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
 import { SearchState } from './searchState';
 import { GitStatusCache, GitInfo } from './gitStatus';
+import { ArchivedVisibilityState } from './archivedState';
 import { findCurrentEntry } from './currentWorkspace';
 
 const DRAG_MIME = 'application/vnd.workspace-control.entry';
@@ -12,6 +13,7 @@ const DRAG_MIME = 'application/vnd.workspace-control.entry';
 const UNTAGGED_LABEL = 'Untagged';
 const CURRENT_MARK = '● ';
 const PINNED_MARK = '★ ';
+const ARCHIVED_MARK = '🗄 ';
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
   public readonly sourceGroupTag: string | null;
@@ -24,7 +26,8 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     sourceGroupTag: string | null = null
   ) {
     const isPinned = !!entry.pinned;
-    const prefix = `${isPinned ? PINNED_MARK : ''}${isCurrent ? CURRENT_MARK : ''}`;
+    const isArchived = !!entry.archived;
+    const prefix = `${isPinned ? PINNED_MARK : ''}${isArchived ? ARCHIVED_MARK : ''}${isCurrent ? CURRENT_MARK : ''}`;
     super(`${prefix}${entry.label}`, vscode.TreeItemCollapsibleState.None);
     this.id = `ws:${entry.id}`;
     const tags = normalizeTags(entry.tags);
@@ -33,11 +36,12 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     const markers: string[] = [];
     if (isCurrent) markers.push('atual');
     if (isPinned) markers.push('pinado');
+    if (isArchived) markers.push('arquivado');
     if (git) markers.push(`${git.branch}${git.dirty ? '●' : ''}`);
     const markerDesc = markers.length > 0 ? `${markers.join(' · ')}  •  ` : '';
     this.description = `${markerDesc}${pathDesc}${tagsDesc}`;
-    this.tooltip = buildTooltip(entry, isCurrent, isPinned, git);
-    this.contextValue = buildContextValue(isCurrent, isPinned);
+    this.tooltip = buildTooltip(entry, isCurrent, isPinned, isArchived, git);
+    this.contextValue = buildContextValue(isCurrent, isPinned, isArchived);
     this.resourceUri = vscode.Uri.file(entry.path);
     const iconId = entry.kind === 'workspaceFile' ? 'multiple-windows' : 'folder';
     const firstTagColor = tags.length > 0 ? colorStore.getThemeColor(tags[0]) : undefined;
@@ -53,10 +57,15 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
   }
 }
 
-function buildContextValue(isCurrent: boolean, isPinned: boolean): string {
+function buildContextValue(
+  isCurrent: boolean,
+  isPinned: boolean,
+  isArchived: boolean
+): string {
   let value = 'workspaceEntry';
   if (isPinned) value += '.pinned';
   if (isCurrent) value += '.current';
+  if (isArchived) value += '.archived';
   return value;
 }
 
@@ -141,7 +150,8 @@ export class WorkspaceTreeProvider
     private readonly filter: FilterState,
     private readonly colorStore: TagColorStore,
     private readonly search: SearchState,
-    private readonly gitStatus: GitStatusCache
+    private readonly gitStatus: GitStatusCache,
+    private readonly archivedVisibility: ArchivedVisibilityState
   ) {
     vscode.commands.executeCommand(
       'setContext',
@@ -157,6 +167,7 @@ export class WorkspaceTreeProvider
       search.onDidChange(() => this.fire()),
       colorStore.onDidChange(() => this.fire()),
       gitStatus.onDidChange(() => this.fire()),
+      archivedVisibility.onDidChange(() => this.fire()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.fire()),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
@@ -232,6 +243,7 @@ export class WorkspaceTreeProvider
       return [];
     }
     const entries = this.store.getAll().filter((e) =>
+      (this.archivedVisibility.isVisible || !e.archived) &&
       this.filter.matches(normalizeTags(e.tags).map((t) => t.toLowerCase())) &&
       this.search.matches(e.label, e.path)
     );
@@ -435,11 +447,15 @@ function buildTooltip(
   entry: SavedWorkspace,
   isCurrent: boolean,
   isPinned: boolean,
+  isArchived: boolean,
   git: GitInfo | null
 ): string {
   const lines: string[] = [entry.path];
   if (isPinned) {
     lines.push('★ Pinado (aparece sempre no topo)');
+  }
+  if (isArchived) {
+    lines.push('🗄 Arquivado');
   }
   if (isCurrent) {
     lines.push('Workspace atual desta janela');
@@ -449,6 +465,10 @@ function buildTooltip(
   }
   if (entry.lastOpenedAt) {
     lines.push(`Último acesso: ${new Date(entry.lastOpenedAt).toLocaleString()}`);
+  }
+  const notes = (entry.notes ?? '').trim();
+  if (notes) {
+    lines.push('', notes);
   }
   return lines.join('\n');
 }

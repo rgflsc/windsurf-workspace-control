@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — Arquivar, notas, descoberta, terminal e cores por workspace
+
+- **Arquivar/desarquivar** workspaces sem deletar. Itens arquivados ficam ocultos por padrão e reaparecem com o toggle `Mostrar arquivados` no topo da view.
+- **Notas por workspace**: comando `Editar notas...` no menu de contexto; o texto aparece no final do tooltip.
+- **Auto-descobrir repos**: `Workspace Control: Auto-descobrir workspaces em pasta...` escaneia a pasta-base escolhida e sugere adicionar subpastas com `.git` ou arquivos `.code-workspace` em lote (com tags opcionais aplicadas a todos).
+- **Abrir todos de uma tag em novas janelas**: ação inline no grupo de tag; confirma antes de abrir, com pequeno delay entre janelas.
+- **Favoritos com atalho**: `Ctrl+Alt+1..9` abrem o N-ésimo workspace pinado (ordenados alfabeticamente).
+- **Reabrir último**: `Workspace Control: Reabrir último workspace` / `Ctrl+Alt+L` reabre o workspace com `lastOpenedAt` mais recente.
+- **Terminal externo no path**: `Abrir terminal externo aqui` no menu de contexto. macOS usa `open -a Terminal`, Windows usa `cmd /K`, Linux tenta `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `kitty`, `xterm`.
+- **Cor por workspace**: `Definir cor do workspace...` aplica `workbench.colorCustomizations` no nível de workspace ao abrir (titleBar, activityBar, statusBar tintados com a cor escolhida). `Remover cor do workspace` limpa. Paleta de 9 cores pré-definidas; contraste do foreground calculado automaticamente.
+
 ## 0.5.4
 
 - Status bar agora exibe **apenas o nome do workspace** colorido com a cor da primeira tag (quando houver). Sem ícone de pasta, sem git, sem sufixo de tags. Oculto quando o workspace atual não está na lista salva ou `showStatusBar` está desligado.
