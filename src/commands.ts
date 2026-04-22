@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { SavedWorkspace } from './types';
+import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
-import { WorkspaceTreeItem } from './workspaceProvider';
+import { TagGroupTreeItem, WorkspaceTreeItem } from './workspaceProvider';
 
 type OpenMode = 'sameWindow' | 'newWindow' | 'ask';
 
@@ -73,6 +73,64 @@ function getDefaultOpenMode(): OpenMode {
   return raw === 'sameWindow' || raw === 'newWindow' ? raw : 'ask';
 }
 
+function collectKnownTags(store: WorkspaceStore): string[] {
+  const set = new Set<string>();
+  for (const entry of store.getAll()) {
+    for (const tag of normalizeTags(entry.tags)) {
+      set.add(tag);
+    }
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+async function pickTags(
+  store: WorkspaceStore,
+  currentTags: string[],
+  placeHolder: string
+): Promise<string[] | undefined> {
+  const known = collectKnownTags(store);
+  const allCandidates = Array.from(
+    new Set<string>([...known, ...normalizeTags(currentTags)])
+  ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  type Item = vscode.QuickPickItem & { tagValue?: string; isCreate?: boolean };
+  const pickItems: Item[] = allCandidates.map((tag) => ({
+    label: tag,
+    picked: currentTags.some((t) => t.toLowerCase() === tag.toLowerCase()),
+    tagValue: tag
+  }));
+  pickItems.push({
+    label: '$(add) Criar nova tag...',
+    description: 'Digite um novo nome',
+    isCreate: true
+  });
+
+  const picked = await vscode.window.showQuickPick(pickItems, {
+    placeHolder,
+    canPickMany: true,
+    matchOnDescription: false
+  });
+  if (!picked) {
+    return undefined;
+  }
+
+  const selectedTags = picked
+    .filter((p): p is Item & { tagValue: string } => Boolean(p.tagValue))
+    .map((p) => p.tagValue);
+
+  if (picked.some((p) => p.isCreate)) {
+    const raw = await vscode.window.showInputBox({
+      prompt: 'Nome(s) de nova(s) tag(s), separadas por vírgula',
+      placeHolder: 'ex: cliente-acme, backend'
+    });
+    if (raw) {
+      selectedTags.push(...raw.split(',').map((t) => t.trim()).filter(Boolean));
+    }
+  }
+
+  return normalizeTags(selectedTags);
+}
+
 export function registerCommands(
   context: vscode.ExtensionContext,
   store: WorkspaceStore
@@ -122,14 +180,21 @@ export function registerCommands(
     }
 
     const pick = await vscode.window.showQuickPick(
-      items.map((entry) => ({
-        label: entry.label,
-        description: entry.path,
-        detail: entry.kind === 'workspaceFile' ? 'Arquivo .code-workspace' : 'Pasta',
-        entry
-      })),
+      items.map((entry) => {
+        const tags = normalizeTags(entry.tags);
+        const detailParts = [entry.kind === 'workspaceFile' ? 'Arquivo .code-workspace' : 'Pasta'];
+        if (tags.length > 0) {
+          detailParts.push(tags.map((t) => `#${t}`).join(' '));
+        }
+        return {
+          label: entry.label,
+          description: entry.path,
+          detail: detailParts.join('  •  '),
+          entry
+        };
+      }),
       {
-        placeHolder: 'Escolha um workspace para abrir',
+        placeHolder: 'Escolha um workspace para abrir (digite @tag para filtrar por tag)',
         matchOnDescription: true,
         matchOnDetail: true
       }
@@ -170,23 +235,7 @@ export function registerCommands(
       return;
     }
 
-    const defaultLabel = defaultLabelFor(fsPath, kind);
-    const label = await vscode.window.showInputBox({
-      prompt: 'Nome para este workspace',
-      value: defaultLabel
-    });
-    if (!label) {
-      return;
-    }
-
-    try {
-      await store.add({ id: newId(), label, path: fsPath, kind });
-      vscode.window.showInformationMessage(`Workspace "${label}" salvo.`);
-    } catch (err) {
-      vscode.window.showWarningMessage(
-        err instanceof Error ? err.message : 'Falha ao salvar workspace.'
-      );
-    }
+    await addWorkspaceWithPrompts(store, fsPath, kind);
   });
 
   register('workspaceControl.addFromPicker', async () => {
@@ -210,23 +259,7 @@ export function registerCommands(
       return;
     }
 
-    const defaultLabel = defaultLabelFor(uri.fsPath, kind);
-    const label = await vscode.window.showInputBox({
-      prompt: 'Nome para este workspace',
-      value: defaultLabel
-    });
-    if (!label) {
-      return;
-    }
-
-    try {
-      await store.add({ id: newId(), label, path: uri.fsPath, kind });
-      vscode.window.showInformationMessage(`Workspace "${label}" adicionado.`);
-    } catch (err) {
-      vscode.window.showWarningMessage(
-        err instanceof Error ? err.message : 'Falha ao adicionar workspace.'
-      );
-    }
+    await addWorkspaceWithPrompts(store, uri.fsPath, kind);
   });
 
   register('workspaceControl.rename', async (arg: unknown) => {
@@ -242,6 +275,102 @@ export function registerCommands(
       return;
     }
     await store.update(entry.id, { label });
+  });
+
+  register('workspaceControl.editTags', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    const current = normalizeTags(entry.tags);
+    const next = await pickTags(
+      store,
+      current,
+      `Selecione tags para "${entry.label}"`
+    );
+    if (!next) {
+      return;
+    }
+    await store.update(entry.id, { tags: next });
+    vscode.window.showInformationMessage(
+      next.length > 0
+        ? `Tags atualizadas: ${next.map((t) => `#${t}`).join(' ')}`
+        : `Tags removidas de "${entry.label}".`
+    );
+  });
+
+  register('workspaceControl.renameTag', async (arg: unknown) => {
+    const tag = coerceTag(arg);
+    if (!tag) {
+      return;
+    }
+    const next = await vscode.window.showInputBox({
+      prompt: `Renomear tag "${tag}" em todos os workspaces`,
+      value: tag
+    });
+    if (!next) {
+      return;
+    }
+    const normalized = normalizeTags([next])[0];
+    if (!normalized || normalized === tag) {
+      return;
+    }
+    const all = store.getAll();
+    let changed = 0;
+    for (const entry of all) {
+      const entryTags = normalizeTags(entry.tags);
+      if (!entryTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+        continue;
+      }
+      const nextTags = normalizeTags(
+        entryTags.map((t) => (t.toLowerCase() === tag.toLowerCase() ? normalized : t))
+      );
+      await store.update(entry.id, { tags: nextTags });
+      changed += 1;
+    }
+    vscode.window.showInformationMessage(
+      `Tag "${tag}" renomeada para "${normalized}" em ${changed} workspace(s).`
+    );
+  });
+
+  register('workspaceControl.deleteTag', async (arg: unknown) => {
+    const tag = coerceTag(arg);
+    if (!tag) {
+      return;
+    }
+    const confirm = await vscode.window.showWarningMessage(
+      `Remover a tag "${tag}" de todos os workspaces? (Workspaces não serão removidos.)`,
+      { modal: true },
+      'Remover tag'
+    );
+    if (confirm !== 'Remover tag') {
+      return;
+    }
+    const all = store.getAll();
+    let changed = 0;
+    for (const entry of all) {
+      const entryTags = normalizeTags(entry.tags);
+      if (!entryTags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+        continue;
+      }
+      const nextTags = entryTags.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+      await store.update(entry.id, { tags: nextTags });
+      changed += 1;
+    }
+    vscode.window.showInformationMessage(
+      `Tag "${tag}" removida de ${changed} workspace(s).`
+    );
+  });
+
+  register('workspaceControl.toggleGrouping', async () => {
+    const cfg = vscode.workspace.getConfiguration('workspaceControl');
+    const current = cfg.get<boolean>('groupByTags', true);
+    await cfg.update('groupByTags', !current, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(
+      !current
+        ? 'Agrupamento por tag ativado.'
+        : 'Agrupamento por tag desativado (lista plana).'
+    );
   });
 
   register('workspaceControl.remove', async (arg: unknown) => {
@@ -285,9 +414,40 @@ export function registerCommands(
   });
 
   register('workspaceControl.refresh', () => {
-    // Re-emits the store change so the tree refreshes.
     void store.setAll(store.getAll());
   });
+}
+
+async function addWorkspaceWithPrompts(
+  store: WorkspaceStore,
+  fsPath: string,
+  kind: SavedWorkspace['kind']
+): Promise<void> {
+  const defaultLabel = defaultLabelFor(fsPath, kind);
+  const label = await vscode.window.showInputBox({
+    prompt: 'Nome para este workspace',
+    value: defaultLabel
+  });
+  if (!label) {
+    return;
+  }
+
+  const tags = await pickTags(store, [], `Tags para "${label}" (opcional)`);
+
+  try {
+    await store.add({
+      id: newId(),
+      label,
+      path: fsPath,
+      kind,
+      tags: tags && tags.length > 0 ? tags : undefined
+    });
+    vscode.window.showInformationMessage(`Workspace "${label}" salvo.`);
+  } catch (err) {
+    vscode.window.showWarningMessage(
+      err instanceof Error ? err.message : 'Falha ao salvar workspace.'
+    );
+  }
 }
 
 function coerceEntry(arg: unknown): SavedWorkspace | undefined {
@@ -299,6 +459,20 @@ function coerceEntry(arg: unknown): SavedWorkspace | undefined {
   }
   if (typeof arg === 'object' && arg !== null && 'id' in arg && 'path' in arg) {
     return arg as SavedWorkspace;
+  }
+  return undefined;
+}
+
+function coerceTag(arg: unknown): string | undefined {
+  if (!arg) {
+    return undefined;
+  }
+  if (arg instanceof TagGroupTreeItem) {
+    return arg.tag === 'Untagged' ? undefined : arg.tag;
+  }
+  if (typeof arg === 'string') {
+    const trimmed = arg.trim();
+    return trimmed ? trimmed : undefined;
   }
   return undefined;
 }
