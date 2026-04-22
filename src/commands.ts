@@ -144,7 +144,7 @@ export function registerCommands(
   colorStore: TagColorStore,
   filter: FilterState,
   provider: WorkspaceTreeProvider,
-  view: vscode.TreeView<WorkspaceTreeNode>
+  _view: vscode.TreeView<WorkspaceTreeNode>
 ): void {
   const register = (cmd: string, handler: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(cmd, handler));
@@ -494,17 +494,12 @@ export function registerCommands(
     await colorStore.clear(tag);
   });
 
-  register('workspaceControl.expandAll', async () => {
-    const roots = await Promise.resolve(provider.getChildren());
-    for (const node of roots) {
-      if (node instanceof TagGroupTreeItem) {
-        try {
-          await view.reveal(node, { expand: true, select: false, focus: false });
-        } catch {
-          // reveal may throw if the item was stale; ignore and continue.
-        }
-      }
-    }
+  register('workspaceControl.expandAllGroups', async () => {
+    await provider.setGroupsCollapsed(false);
+  });
+
+  register('workspaceControl.collapseAllGroups', async () => {
+    await provider.setGroupsCollapsed(true);
   });
 
   register('workspaceControl.pin', async (arg: unknown) => {

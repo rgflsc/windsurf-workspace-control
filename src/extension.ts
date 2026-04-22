@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const view = vscode.window.createTreeView('workspaceControl.list', {
     treeDataProvider: provider,
-    showCollapseAll: true
+    showCollapseAll: false
   });
 
   context.subscriptions.push(view, store, colorStore, filter, provider, statusBar);
