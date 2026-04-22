@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -115,6 +115,21 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "workspaceControl.search",
+        "title": "Workspace Control: Buscar por nome...",
+        "icon": "$(search)"
+      },
+      {
+        "command": "workspaceControl.clearSearch",
+        "title": "Workspace Control: Limpar busca",
+        "icon": "$(search-stop)"
+      },
+      {
+        "command": "workspaceControl.refreshGitStatus",
+        "title": "Workspace Control: Recarregar status do Git",
+        "icon": "$(git-branch)"
+      },
+      {
         "command": "workspaceControl.openRecent",
         "title": "Workspace Control: Abrir recente...",
         "icon": "$(history)"
@@ -215,34 +230,49 @@
           "group": "navigation@3"
         },
         {
+          "command": "workspaceControl.search",
+          "when": "view == workspaceControl.list && !workspaceControl.searchActive",
+          "group": "navigation@4"
+        },
+        {
+          "command": "workspaceControl.clearSearch",
+          "when": "view == workspaceControl.list && workspaceControl.searchActive",
+          "group": "navigation@4"
+        },
+        {
           "command": "workspaceControl.filterByTag",
           "when": "view == workspaceControl.list",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "workspaceControl.clearFilter",
           "when": "view == workspaceControl.list && workspaceControl.filterActive",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "workspaceControl.toggleGrouping",
           "when": "view == workspaceControl.list",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "workspaceControl.collapseAllGroups",
           "when": "view == workspaceControl.list && config.workspaceControl.groupByTags && !workspaceControl.groupsCollapsed",
-          "group": "navigation@7"
+          "group": "navigation@8"
         },
         {
           "command": "workspaceControl.expandAllGroups",
           "when": "view == workspaceControl.list && config.workspaceControl.groupByTags && workspaceControl.groupsCollapsed",
-          "group": "navigation@7"
+          "group": "navigation@8"
+        },
+        {
+          "command": "workspaceControl.refreshGitStatus",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@9"
         },
         {
           "command": "workspaceControl.refresh",
           "when": "view == workspaceControl.list",
-          "group": "navigation@8"
+          "group": "navigation@10"
         }
       ],
       "view/item/context": [

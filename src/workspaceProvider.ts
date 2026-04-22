@@ -4,17 +4,25 @@ import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
 import { TagColorStore } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
+import { SearchState } from './searchState';
+import { GitStatusCache, GitInfo } from './gitStatus';
 import { findCurrentEntry } from './currentWorkspace';
+
+const DRAG_MIME = 'application/vnd.workspace-control.entry';
 
 const UNTAGGED_LABEL = 'Untagged';
 const CURRENT_MARK = '● ';
 const PINNED_MARK = '★ ';
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
+  public readonly sourceGroupTag: string | null;
+
   constructor(
     public readonly entry: SavedWorkspace,
     colorStore: TagColorStore,
-    isCurrent = false
+    isCurrent = false,
+    git: GitInfo | null = null,
+    sourceGroupTag: string | null = null
   ) {
     const isPinned = !!entry.pinned;
     const prefix = `${isPinned ? PINNED_MARK : ''}${isCurrent ? CURRENT_MARK : ''}`;
@@ -26,9 +34,10 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     const markers: string[] = [];
     if (isCurrent) markers.push('atual');
     if (isPinned) markers.push('pinado');
+    if (git) markers.push(`${git.branch}${git.dirty ? '●' : ''}`);
     const markerDesc = markers.length > 0 ? `${markers.join(' · ')}  •  ` : '';
     this.description = `${markerDesc}${pathDesc}${tagsDesc}`;
-    this.tooltip = buildTooltip(entry, isCurrent, isPinned);
+    this.tooltip = buildTooltip(entry, isCurrent, isPinned, git);
     this.contextValue = buildContextValue(isCurrent, isPinned);
     this.resourceUri = vscode.Uri.file(entry.path);
     const iconId = entry.kind === 'workspaceFile' ? 'multiple-windows' : 'folder';
@@ -41,6 +50,7 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
       title: 'Abrir',
       arguments: [entry]
     };
+    this.sourceGroupTag = sourceGroupTag;
   }
 }
 
@@ -88,18 +98,40 @@ export class FilterIndicatorTreeItem extends vscode.TreeItem {
   }
 }
 
+export class SearchIndicatorTreeItem extends vscode.TreeItem {
+  constructor(query: string) {
+    super(`Buscando: ${query}`, vscode.TreeItemCollapsibleState.None);
+    this.id = 'search:indicator';
+    this.contextValue = 'searchIndicator';
+    this.iconPath = new vscode.ThemeIcon('search');
+    this.command = {
+      command: 'workspaceControl.clearSearch',
+      title: 'Limpar busca',
+      arguments: []
+    };
+    this.tooltip = 'Clique para limpar a busca';
+  }
+}
+
 export type WorkspaceTreeNode =
   | WorkspaceTreeItem
   | TagGroupTreeItem
-  | FilterIndicatorTreeItem;
+  | FilterIndicatorTreeItem
+  | SearchIndicatorTreeItem;
 
 export class WorkspaceTreeProvider
-  implements vscode.TreeDataProvider<WorkspaceTreeNode>, vscode.Disposable
+  implements
+    vscode.TreeDataProvider<WorkspaceTreeNode>,
+    vscode.TreeDragAndDropController<WorkspaceTreeNode>,
+    vscode.Disposable
 {
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<
     WorkspaceTreeNode | undefined | void
   >();
   public readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
+
+  public readonly dragMimeTypes = [DRAG_MIME];
+  public readonly dropMimeTypes = [DRAG_MIME];
 
   private readonly disposables: vscode.Disposable[] = [];
 
@@ -108,7 +140,9 @@ export class WorkspaceTreeProvider
   constructor(
     private readonly store: WorkspaceStore,
     private readonly filter: FilterState,
-    private readonly colorStore: TagColorStore
+    private readonly colorStore: TagColorStore,
+    private readonly search: SearchState,
+    private readonly gitStatus: GitStatusCache
   ) {
     vscode.commands.executeCommand(
       'setContext',
@@ -116,9 +150,14 @@ export class WorkspaceTreeProvider
       false
     );
     this.disposables.push(
-      store.onDidChange(() => this.fire()),
+      store.onDidChange(() => {
+        this.gitStatus.invalidate();
+        this.fire();
+      }),
       filter.onDidChange(() => this.fire()),
+      search.onDidChange(() => this.fire()),
       colorStore.onDidChange(() => this.fire()),
+      gitStatus.onDidChange(() => this.fire()),
       vscode.workspace.onDidChangeWorkspaceFolders(() => this.fire()),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
@@ -176,18 +215,32 @@ export class WorkspaceTreeProvider
   public getChildren(element?: WorkspaceTreeNode): WorkspaceTreeNode[] {
     const currentId = findCurrentEntry(this.store)?.id;
     if (element instanceof TagGroupTreeItem) {
+      const sourceTag = element.tag === UNTAGGED_LABEL ? null : element.tag;
       return [...element.entries]
         .sort(byLabel)
-        .map((e) => new WorkspaceTreeItem(e, this.colorStore, e.id === currentId));
+        .map(
+          (e) =>
+            new WorkspaceTreeItem(
+              e,
+              this.colorStore,
+              e.id === currentId,
+              this.gitStatus.get(e),
+              sourceTag
+            )
+        );
     }
     if (element) {
       return [];
     }
     const entries = this.store.getAll().filter((e) =>
-      this.filter.matches(normalizeTags(e.tags).map((t) => t.toLowerCase()))
+      this.filter.matches(normalizeTags(e.tags).map((t) => t.toLowerCase())) &&
+      this.search.matches(e.label, e.path)
     );
 
     const roots: WorkspaceTreeNode[] = [];
+    if (this.search.isActive) {
+      roots.push(new SearchIndicatorTreeItem(this.search.query));
+    }
     if (this.filter.isActive) {
       roots.push(new FilterIndicatorTreeItem(this.filter.getActiveLabels()));
     }
@@ -195,13 +248,129 @@ export class WorkspaceTreeProvider
     if (!isGroupByTagsEnabled()) {
       const sorted = [...entries].sort(byLabel);
       for (const entry of sorted) {
-        roots.push(new WorkspaceTreeItem(entry, this.colorStore, entry.id === currentId));
+        roots.push(
+          new WorkspaceTreeItem(
+            entry,
+            this.colorStore,
+            entry.id === currentId,
+            this.gitStatus.get(entry)
+          )
+        );
       }
       return roots;
     }
     roots.push(...buildTagGroups(entries, this.colorStore, this.filter, this.groupsCollapsed));
     return roots;
   }
+
+  public handleDrag(
+    source: readonly WorkspaceTreeNode[],
+    dataTransfer: vscode.DataTransfer
+  ): void {
+    const payload = source
+      .filter((n): n is WorkspaceTreeItem => n instanceof WorkspaceTreeItem)
+      .map((n) => ({ id: n.entry.id, sourceTag: n.sourceGroupTag }));
+    if (payload.length === 0) {
+      return;
+    }
+    dataTransfer.set(DRAG_MIME, new vscode.DataTransferItem(JSON.stringify(payload)));
+  }
+
+  public async handleDrop(
+    target: WorkspaceTreeNode | undefined,
+    dataTransfer: vscode.DataTransfer
+  ): Promise<void> {
+    const item = dataTransfer.get(DRAG_MIME);
+    if (!item) {
+      return;
+    }
+    let payload: Array<{ id: string; sourceTag: string | null }>;
+    try {
+      payload = parseDragPayload(await item.asString());
+    } catch {
+      return;
+    }
+    if (payload.length === 0) {
+      return;
+    }
+    const targetTag = dropTargetTag(target);
+    if (targetTag === undefined) {
+      return;
+    }
+    for (const { id, sourceTag } of payload) {
+      const entry = this.store.get(id);
+      if (!entry) continue;
+      const nextTags = computeDroppedTags(
+        normalizeTags(entry.tags),
+        sourceTag,
+        targetTag
+      );
+      await this.store.update(id, { tags: nextTags });
+    }
+  }
+}
+
+function parseDragPayload(
+  raw: string
+): Array<{ id: string; sourceTag: string | null }> {
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  const out: Array<{ id: string; sourceTag: string | null }> = [];
+  for (const item of parsed) {
+    if (item && typeof item === 'object' && typeof (item as { id: unknown }).id === 'string') {
+      const sourceTag = (item as { sourceTag: unknown }).sourceTag;
+      out.push({
+        id: (item as { id: string }).id,
+        sourceTag: typeof sourceTag === 'string' ? sourceTag : null
+      });
+    }
+  }
+  return out;
+}
+
+function computeDroppedTags(
+  currentTags: string[],
+  sourceTag: string | null,
+  targetTag: string | null
+): string[] {
+  if (targetTag === null) {
+    return [];
+  }
+  if (currentTags.length === 0) {
+    return normalizeTags([targetTag]);
+  }
+  const sourceLower = sourceTag?.toLowerCase();
+  const targetLower = targetTag.toLowerCase();
+  if (sourceLower) {
+    const replaced = currentTags.map((t) =>
+      t.toLowerCase() === sourceLower ? targetTag : t
+    );
+    if (!replaced.some((t) => t.toLowerCase() === sourceLower)) {
+      return normalizeTags(replaced);
+    }
+    if (!currentTags.some((t) => t.toLowerCase() === sourceLower)) {
+      replaced.push(targetTag);
+    }
+    return normalizeTags(replaced);
+  }
+  if (currentTags.some((t) => t.toLowerCase() === targetLower)) {
+    return normalizeTags(currentTags);
+  }
+  const [, ...rest] = currentTags;
+  return normalizeTags([targetTag, ...rest]);
+}
+
+function dropTargetTag(target: WorkspaceTreeNode | undefined): string | null | undefined {
+  if (target instanceof TagGroupTreeItem) {
+    return target.tag === UNTAGGED_LABEL ? null : target.tag;
+  }
+  if (target instanceof WorkspaceTreeItem) {
+    const tags = normalizeTags(target.entry.tags);
+    return tags.length > 0 ? tags[0] : null;
+  }
+  return undefined;
 }
 
 function byLabel(a: SavedWorkspace, b: SavedWorkspace): number {
@@ -263,13 +432,21 @@ function shortenPath(fullPath: string): string {
   return fullPath;
 }
 
-function buildTooltip(entry: SavedWorkspace, isCurrent: boolean, isPinned: boolean): string {
+function buildTooltip(
+  entry: SavedWorkspace,
+  isCurrent: boolean,
+  isPinned: boolean,
+  git: GitInfo | null
+): string {
   const lines = [entry.label, entry.path, `Tipo: ${entry.kind}`];
   if (isPinned) {
     lines.push('★ Pinado (aparece sempre no topo)');
   }
   if (isCurrent) {
     lines.push('Workspace atual desta janela');
+  }
+  if (git) {
+    lines.push(`Git: ${git.branch}${git.dirty ? ' (modificado)' : ''}`);
   }
   const tags = normalizeTags(entry.tags);
   if (tags.length > 0) {

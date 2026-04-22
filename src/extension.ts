@@ -4,23 +4,37 @@ import { WorkspaceTreeProvider } from './workspaceProvider';
 import { WorkspaceStore } from './workspaceStore';
 import { TagColorStore } from './tagColorStore';
 import { FilterState } from './filterState';
+import { SearchState } from './searchState';
+import { GitStatusCache } from './gitStatus';
 import { StatusBarManager } from './statusBar';
 
 export function activate(context: vscode.ExtensionContext): void {
   const store = new WorkspaceStore(context);
   const colorStore = new TagColorStore(context);
   const filter = new FilterState();
-  const provider = new WorkspaceTreeProvider(store, filter, colorStore);
+  const search = new SearchState();
+  const gitStatus = new GitStatusCache();
+  const provider = new WorkspaceTreeProvider(store, filter, colorStore, search, gitStatus);
   const statusBar = new StatusBarManager(store, colorStore);
 
   const view = vscode.window.createTreeView('workspaceControl.list', {
     treeDataProvider: provider,
-    showCollapseAll: false
+    showCollapseAll: false,
+    dragAndDropController: provider
   });
 
-  context.subscriptions.push(view, store, colorStore, filter, provider, statusBar);
+  context.subscriptions.push(
+    view,
+    store,
+    colorStore,
+    filter,
+    search,
+    gitStatus,
+    provider,
+    statusBar
+  );
 
-  registerCommands(context, store, colorStore, filter, provider, view);
+  registerCommands(context, store, colorStore, filter, provider, view, search, gitStatus);
 }
 
 export function deactivate(): void {
