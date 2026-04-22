@@ -52,7 +52,11 @@ async function writeWorkspaceColor(colorId: string | undefined): Promise<void> {
     return;
   }
   const cfg = vscode.workspace.getConfiguration('workbench');
-  const existing = cfg.get<Record<string, string>>('colorCustomizations') ?? {};
+  // Read the workspace-scoped value only — `cfg.get()` returns the merged value
+  // across user/workspace/folder scopes, which would copy unrelated user-level
+  // customizations into the workspace settings file.
+  const inspected = cfg.inspect<Record<string, string>>('colorCustomizations');
+  const existing = inspected?.workspaceValue ?? {};
   const hadMarker = Object.keys(existing).some((k) => k.startsWith(MARKER_PREFIX));
   const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(existing)) {

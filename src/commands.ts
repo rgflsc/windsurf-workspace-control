@@ -992,10 +992,12 @@ function openExternalTerminalAt(cwd: string): void {
     return;
   }
   if (platform === 'win32') {
-    spawn('cmd.exe', ['/c', 'start', '""', 'cmd.exe', '/K', `cd /D "${cwd}"`], {
+    // Spawn cmd.exe directly with `cwd` so we avoid Node's MSVC-style quoting
+    // (which cmd.exe does not understand) — no argument escaping required.
+    spawn('cmd.exe', [], {
       detached: true,
       stdio: 'ignore',
-      shell: false
+      cwd
     }).unref();
     return;
   }
