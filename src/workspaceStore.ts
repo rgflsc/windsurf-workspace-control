@@ -21,6 +21,10 @@ export class WorkspaceStore {
     return [...raw];
   }
 
+  public get(id: string): SavedWorkspace | undefined {
+    return this.getAll().find((w) => w.id === id);
+  }
+
   public async setAll(list: SavedWorkspace[]): Promise<void> {
     await this.memento.update(STORAGE_KEY, list);
     this.onDidChangeEmitter.fire();

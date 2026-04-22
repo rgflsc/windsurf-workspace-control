@@ -11,6 +11,8 @@ import {
 } from './workspaceProvider';
 import { TagColorStore, TAG_COLOR_OPTIONS } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
+import { SearchState } from './searchState';
+import { GitStatusCache } from './gitStatus';
 
 type OpenMode = 'sameWindow' | 'newWindow' | 'ask';
 
@@ -144,7 +146,9 @@ export function registerCommands(
   colorStore: TagColorStore,
   filter: FilterState,
   provider: WorkspaceTreeProvider,
-  _view: vscode.TreeView<WorkspaceTreeNode>
+  _view: vscode.TreeView<WorkspaceTreeNode>,
+  search: SearchState,
+  gitStatus: GitStatusCache
 ): void {
   const register = (cmd: string, handler: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(cmd, handler));
@@ -492,6 +496,26 @@ export function registerCommands(
       return;
     }
     await colorStore.clear(tag);
+  });
+
+  register('workspaceControl.search', async () => {
+    const value = await vscode.window.showInputBox({
+      prompt: 'Buscar workspaces por nome ou caminho',
+      value: search.query,
+      placeHolder: 'Digite um trecho do nome ou caminho'
+    });
+    if (value === undefined) {
+      return;
+    }
+    search.set(value);
+  });
+
+  register('workspaceControl.clearSearch', () => {
+    search.clear();
+  });
+
+  register('workspaceControl.refreshGitStatus', () => {
+    gitStatus.invalidate();
   });
 
   register('workspaceControl.expandAllGroups', async () => {

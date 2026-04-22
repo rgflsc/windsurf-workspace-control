@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — Busca, drag & drop, git status
+
+- **Busca incremental** na TreeView: novo botão `$(search)` e comando `workspaceControl.search` abrem um InputBox; a busca filtra por substring no `label`/`path` (case-insensitive) e combina com o filtro por tag. Indicador "Buscando: ..." no topo, clicável para limpar.
+- **Drag & drop** de workspaces entre grupos de tag: arraste um item pra dentro de outro grupo e a tag principal é substituída pela do destino. Soltar em **Untagged** limpa as tags. Reordenação interna continua automática (alfabética + pinados primeiro).
+- **Git status inline**: branch atual e `●` quando há alterações, exibidos na description de cada workspace do tipo `folder` (e de `.code-workspace` cuja pasta pai é um repo). Leitura assíncrona com cache TTL de 30s. Comando `Workspace Control: Recarregar status do Git` força refresh manual.
+
 ## 0.4.2
 
 - Fix: botão de expandir/recolher agora realmente abre e fecha os grupos. O VS Code cacheia o estado de expand/collapse pelo `id` do TreeItem, então só trocar `collapsibleState` ao refrescar não surte efeito. Passamos a incluir o estado (`c`/`e`) no `id`, forçando o tree a instanciar um novo item com o `collapsibleState` correto.
