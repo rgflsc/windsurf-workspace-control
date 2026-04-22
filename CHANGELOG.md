@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4
+
+- Marcação "● atual" no workspace aberto na sessão atual: prefixo **●** no label e texto "atual  •  ..." no início da descrição. A cor da tag (se houver) é preservada.
+- `contextValue` separado (`workspaceEntry.current`) para permitir menus específicos no futuro.
+- Lógica de match do workspace atual extraída para `src/currentWorkspace.ts` e reutilizada pela StatusBar.
+- Árvore reage a `onDidChangeWorkspaceFolders` para atualizar a marca automaticamente.
+
 ## 0.3.3
 
 - Ordenação consistente na TreeView:

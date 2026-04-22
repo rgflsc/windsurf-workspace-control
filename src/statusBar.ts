@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
 import { TagColorStore } from './tagColorStore';
+import { findCurrentEntry } from './currentWorkspace';
 
 /**
  * Manages a StatusBarItem that reflects the currently-open workspace
@@ -46,7 +47,7 @@ export class StatusBarManager implements vscode.Disposable {
       return;
     }
 
-    const match = this.findMatchingEntry();
+    const match = findCurrentEntry(this.store);
     if (!match) {
       this.item.hide();
       return;
@@ -63,45 +64,12 @@ export class StatusBarManager implements vscode.Disposable {
     this.item.show();
   }
 
-  private findMatchingEntry(): SavedWorkspace | undefined {
-    const wsFile = vscode.workspace.workspaceFile;
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    const entries = this.store.getAll();
-
-    if (wsFile && wsFile.scheme === 'file') {
-      const hit = entries.find(
-        (e) => e.kind === 'workspaceFile' && samePath(e.path, wsFile.fsPath)
-      );
-      if (hit) {
-        return hit;
-      }
-    }
-    if (folders.length === 1) {
-      return entries.find(
-        (e) => e.kind === 'folder' && samePath(e.path, folders[0].uri.fsPath)
-      );
-    }
-    return undefined;
-  }
-
   public dispose(): void {
     for (const d of this.disposables) {
       d.dispose();
     }
     this.item.dispose();
   }
-}
-
-function samePath(a: string, b: string): boolean {
-  if (!a || !b) {
-    return false;
-  }
-  const normA = a.replace(/[\\/]+$/, '');
-  const normB = b.replace(/[\\/]+$/, '');
-  if (process.platform === 'win32') {
-    return normA.toLowerCase() === normB.toLowerCase();
-  }
-  return normA === normB;
 }
 
 function buildTooltip(entry: SavedWorkspace, tags: readonly string[]): string {

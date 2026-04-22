@@ -4,22 +4,26 @@ import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
 import { TagColorStore } from './tagColorStore';
 import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
+import { findCurrentEntry } from './currentWorkspace';
 
 const UNTAGGED_LABEL = 'Untagged';
+const CURRENT_MARK = '● ';
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
   constructor(
     public readonly entry: SavedWorkspace,
-    colorStore: TagColorStore
+    colorStore: TagColorStore,
+    isCurrent = false
   ) {
-    super(entry.label, vscode.TreeItemCollapsibleState.None);
+    super(isCurrent ? `${CURRENT_MARK}${entry.label}` : entry.label, vscode.TreeItemCollapsibleState.None);
     this.id = `ws:${entry.id}`;
     const tags = normalizeTags(entry.tags);
-    this.description = tags.length > 0
-      ? `${shortenPath(entry.path)}  #${tags.join(' #')}`
-      : shortenPath(entry.path);
-    this.tooltip = buildTooltip(entry);
-    this.contextValue = 'workspaceEntry';
+    const pathDesc = shortenPath(entry.path);
+    const tagsDesc = tags.length > 0 ? `  #${tags.join(' #')}` : '';
+    const currentDesc = isCurrent ? 'atual  •  ' : '';
+    this.description = `${currentDesc}${pathDesc}${tagsDesc}`;
+    this.tooltip = buildTooltip(entry, isCurrent);
+    this.contextValue = isCurrent ? 'workspaceEntry.current' : 'workspaceEntry';
     this.resourceUri = vscode.Uri.file(entry.path);
     const iconId = entry.kind === 'workspaceFile' ? 'multiple-windows' : 'folder';
     const firstTagColor = tags.length > 0 ? colorStore.getThemeColor(tags[0]) : undefined;
@@ -92,6 +96,7 @@ export class WorkspaceTreeProvider
       store.onDidChange(() => this.fire()),
       filter.onDidChange(() => this.fire()),
       colorStore.onDidChange(() => this.fire()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.fire()),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (
           event.affectsConfiguration('workspaceControl.groupByTags') ||
@@ -129,10 +134,11 @@ export class WorkspaceTreeProvider
   }
 
   public getChildren(element?: WorkspaceTreeNode): WorkspaceTreeNode[] {
+    const currentId = findCurrentEntry(this.store)?.id;
     if (element instanceof TagGroupTreeItem) {
       return [...element.entries]
         .sort(byLabel)
-        .map((e) => new WorkspaceTreeItem(e, this.colorStore));
+        .map((e) => new WorkspaceTreeItem(e, this.colorStore, e.id === currentId));
     }
     if (element) {
       return [];
@@ -149,7 +155,7 @@ export class WorkspaceTreeProvider
     if (!isGroupByTagsEnabled()) {
       const sorted = [...entries].sort(byLabel);
       for (const entry of sorted) {
-        roots.push(new WorkspaceTreeItem(entry, this.colorStore));
+        roots.push(new WorkspaceTreeItem(entry, this.colorStore, entry.id === currentId));
       }
       return roots;
     }
@@ -214,8 +220,11 @@ function shortenPath(fullPath: string): string {
   return fullPath;
 }
 
-function buildTooltip(entry: SavedWorkspace): string {
+function buildTooltip(entry: SavedWorkspace, isCurrent: boolean): string {
   const lines = [entry.label, entry.path, `Tipo: ${entry.kind}`];
+  if (isCurrent) {
+    lines.push('Workspace atual desta janela');
+  }
   const tags = normalizeTags(entry.tags);
   if (tags.length > 0) {
     lines.push(`Tags: ${tags.join(', ')}`);
