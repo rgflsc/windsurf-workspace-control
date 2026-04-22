@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -180,16 +180,6 @@
         "icon": "$(trash)"
       },
       {
-        "command": "workspaceControl.moveUp",
-        "title": "Mover para cima",
-        "icon": "$(arrow-up)"
-      },
-      {
-        "command": "workspaceControl.moveDown",
-        "title": "Mover para baixo",
-        "icon": "$(arrow-down)"
-      },
-      {
         "command": "workspaceControl.refresh",
         "title": "Atualizar",
         "icon": "$(refresh)"
@@ -305,16 +295,6 @@
           "command": "workspaceControl.rename",
           "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "1_modify@2"
-        },
-        {
-          "command": "workspaceControl.moveUp",
-          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
-          "group": "1_modify@3"
-        },
-        {
-          "command": "workspaceControl.moveDown",
-          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
-          "group": "1_modify@4"
         },
         {
           "command": "workspaceControl.revealInExplorer",
