@@ -54,21 +54,6 @@ export class WorkspaceStore {
     await this.setAll(list);
   }
 
-  public async move(id: string, delta: number): Promise<void> {
-    const list = this.getAll();
-    const idx = list.findIndex((w) => w.id === id);
-    if (idx === -1) {
-      return;
-    }
-    const target = idx + delta;
-    if (target < 0 || target >= list.length) {
-      return;
-    }
-    const [item] = list.splice(idx, 1);
-    list.splice(target, 0, item);
-    await this.setAll(list);
-  }
-
   public async touch(id: string): Promise<void> {
     await this.update(id, { lastOpenedAt: new Date().toISOString() });
   }

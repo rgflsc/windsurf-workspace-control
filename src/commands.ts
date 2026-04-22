@@ -399,22 +399,6 @@ export function registerCommands(
     await store.remove(entry.id);
   });
 
-  register('workspaceControl.moveUp', async (arg: unknown) => {
-    const entry = coerceEntry(arg);
-    if (!entry) {
-      return;
-    }
-    await store.move(entry.id, -1);
-  });
-
-  register('workspaceControl.moveDown', async (arg: unknown) => {
-    const entry = coerceEntry(arg);
-    if (!entry) {
-      return;
-    }
-    await store.move(entry.id, +1);
-  });
-
   register('workspaceControl.revealInExplorer', async (arg: unknown) => {
     const entry = coerceEntry(arg);
     if (!entry) {

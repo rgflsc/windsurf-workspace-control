@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Remove os comandos **Mover para cima** / **Mover para baixo** (e o método `move` do store). A árvore é sempre ordenada automaticamente (pinados primeiro, depois alfabética), então esses comandos eram dead code desde a v0.3.3.
+
 ## 0.5.1
 
 - **Status bar enxuto**: agora mostra apenas o branch + indicador de modificado (●) do workspace atual. Se o workspace não for um repositório git (ou não estiver salvo), o item fica oculto. Removidos label, ícone de pasta e tags coloridas do status bar.
