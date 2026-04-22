@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import { SavedWorkspace, normalizeTags } from './types';
 import { WorkspaceStore } from './workspaceStore';
 import { TagGroupTreeItem, WorkspaceTreeItem } from './workspaceProvider';
+import { TagColorStore, TAG_COLOR_OPTIONS } from './tagColorStore';
+import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
 
 type OpenMode = 'sameWindow' | 'newWindow' | 'ask';
 
@@ -133,7 +135,9 @@ async function pickTags(
 
 export function registerCommands(
   context: vscode.ExtensionContext,
-  store: WorkspaceStore
+  store: WorkspaceStore,
+  colorStore: TagColorStore,
+  filter: FilterState
 ): void {
   const register = (cmd: string, handler: (...args: unknown[]) => unknown): void => {
     context.subscriptions.push(vscode.commands.registerCommand(cmd, handler));
@@ -415,6 +419,77 @@ export function registerCommands(
 
   register('workspaceControl.refresh', () => {
     void store.setAll(store.getAll());
+  });
+
+  register('workspaceControl.filterByTag', async () => {
+    const knownTags = collectKnownTags(store);
+    if (knownTags.length === 0) {
+      const untagged = store.getAll().some((e) => normalizeTags(e.tags).length === 0);
+      if (!untagged) {
+        vscode.window.showInformationMessage(
+          'Nenhuma tag existe ainda. Use "Editar tags..." em um workspace primeiro.'
+        );
+        return;
+      }
+    }
+
+    type Item = vscode.QuickPickItem & { tagKey: string };
+    const currentActive = new Set(filter.getActive());
+    const items: Item[] = knownTags.map((tag) => ({
+      label: `#${tag}`,
+      tagKey: tag.toLowerCase(),
+      picked: currentActive.has(tag.toLowerCase())
+    }));
+    items.push({
+      label: 'Untagged',
+      description: 'Workspaces sem tag',
+      tagKey: UNTAGGED_FILTER_KEY,
+      picked: currentActive.has(UNTAGGED_FILTER_KEY)
+    });
+
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Filtrar por tag(s). Vazio = mostrar tudo.',
+      canPickMany: true
+    });
+    if (!picked) {
+      return;
+    }
+    if (picked.length === 0) {
+      filter.clear();
+      return;
+    }
+    filter.set(picked.map((p) => p.tagKey));
+  });
+
+  register('workspaceControl.clearFilter', () => {
+    filter.clear();
+  });
+
+  register('workspaceControl.setTagColor', async (arg: unknown) => {
+    const tag = coerceTag(arg);
+    if (!tag) {
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      TAG_COLOR_OPTIONS.map((opt) => ({
+        label: opt.label,
+        description: opt.themeColor ?? '—',
+        id: opt.id
+      })),
+      { placeHolder: `Escolha uma cor para a tag "${tag}"` }
+    );
+    if (!pick) {
+      return;
+    }
+    await colorStore.setColor(tag, pick.id);
+  });
+
+  register('workspaceControl.clearTagColor', async (arg: unknown) => {
+    const tag = coerceTag(arg);
+    if (!tag) {
+      return;
+    }
+    await colorStore.clear(tag);
   });
 }
 

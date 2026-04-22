@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — Status bar, filtro e cores
+
+- **Status bar**: item à esquerda mostra ícone + label + tags do workspace atual (quando ele estiver salvo). Clique abre o QuickPick de alternar. Config `workspaceControl.showStatusBar` (default `true`).
+- **Filtro por tag na TreeView**: novo botão **Filtrar por tag...** no topo da view (ou comando do Command Palette). Quando ativo, aparece um item "Filtrando: #a #b" no topo da lista; clicar nele ou usar **Limpar filtro** limpa.
+- **Cores por tag**: novo comando **Definir cor da tag...** no menu de contexto do grupo. Escolha entre 10 cores de tema (charts.*, editorWarning.foreground, etc.). O ícone do grupo e o ícone dos itens (pela 1ª tag) passam a refletir a cor. Cores são persistidas via `globalState`.
+
 ## 0.2.1
 
 - TreeView agora recarrega automaticamente ao alternar `workspaceControl.groupByTags` (ou `workspaceControl.storageScope`), seja via comando/botão ou editando as configurações manualmente.
