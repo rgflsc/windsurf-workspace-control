@@ -1,0 +1,221 @@
+{
+  "name": "windsurf-workspace-control",
+  "displayName": "Workspace Control",
+  "description": "Salve e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
+  "version": "0.1.0",
+  "publisher": "rgflsc",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rgflsc/windsurf-workspace-control.git"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "windsurf",
+    "workspace",
+    "switcher",
+    "multi-root",
+    "productivity"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "workspaceControl",
+          "title": "Workspace Control",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "workspaceControl": [
+        {
+          "id": "workspaceControl.list",
+          "name": "Saved Workspaces",
+          "icon": "media/icon.svg",
+          "contextualTitle": "Workspace Control"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "workspaceControl.list",
+        "contents": "Nenhum workspace salvo ainda.\n[Adicionar workspace atual](command:workspaceControl.addCurrent)\n[Adicionar pasta ou arquivo .code-workspace](command:workspaceControl.addFromPicker)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "workspaceControl.quickSwitch",
+        "title": "Workspace Control: Alternar workspace...",
+        "icon": "$(replace)"
+      },
+      {
+        "command": "workspaceControl.addCurrent",
+        "title": "Workspace Control: Salvar workspace atual",
+        "icon": "$(add)"
+      },
+      {
+        "command": "workspaceControl.addFromPicker",
+        "title": "Workspace Control: Adicionar workspace a partir de pasta/arquivo...",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "workspaceControl.openInSameWindow",
+        "title": "Abrir nesta janela",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "workspaceControl.openInNewWindow",
+        "title": "Abrir em nova janela",
+        "icon": "$(empty-window)"
+      },
+      {
+        "command": "workspaceControl.rename",
+        "title": "Renomear",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "workspaceControl.remove",
+        "title": "Remover",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "workspaceControl.moveUp",
+        "title": "Mover para cima",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "workspaceControl.moveDown",
+        "title": "Mover para baixo",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "workspaceControl.refresh",
+        "title": "Atualizar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "workspaceControl.revealInExplorer",
+        "title": "Revelar no explorador do SO",
+        "icon": "$(folder)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "workspaceControl.quickSwitch",
+        "key": "ctrl+alt+w",
+        "mac": "cmd+alt+w"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "workspaceControl.addCurrent",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@1"
+        },
+        {
+          "command": "workspaceControl.addFromPicker",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@2"
+        },
+        {
+          "command": "workspaceControl.quickSwitch",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@3"
+        },
+        {
+          "command": "workspaceControl.refresh",
+          "when": "view == workspaceControl.list",
+          "group": "navigation@4"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "workspaceControl.openInSameWindow",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "inline@1"
+        },
+        {
+          "command": "workspaceControl.openInNewWindow",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "inline@2"
+        },
+        {
+          "command": "workspaceControl.rename",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "1_modify@1"
+        },
+        {
+          "command": "workspaceControl.moveUp",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "1_modify@2"
+        },
+        {
+          "command": "workspaceControl.moveDown",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "1_modify@3"
+        },
+        {
+          "command": "workspaceControl.revealInExplorer",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "2_reveal@1"
+        },
+        {
+          "command": "workspaceControl.remove",
+          "when": "view == workspaceControl.list && viewItem == workspaceEntry",
+          "group": "9_destructive@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Workspace Control",
+      "properties": {
+        "workspaceControl.defaultOpenBehavior": {
+          "type": "string",
+          "enum": [
+            "sameWindow",
+            "newWindow",
+            "ask"
+          ],
+          "default": "ask",
+          "description": "Comportamento padrão ao abrir um workspace a partir da lista."
+        },
+        "workspaceControl.storageScope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "workspace"
+          ],
+          "default": "global",
+          "description": "Onde salvar a lista de workspaces: global (todas as janelas) ou por workspace atual."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^2.24.0",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.0"
+  }
+}
