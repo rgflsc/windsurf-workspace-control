@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {
@@ -115,6 +115,31 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "workspaceControl.openRecent",
+        "title": "Workspace Control: Abrir recente...",
+        "icon": "$(history)"
+      },
+      {
+        "command": "workspaceControl.pin",
+        "title": "Fixar no topo",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "workspaceControl.unpin",
+        "title": "Desafixar",
+        "icon": "$(pinned)"
+      },
+      {
+        "command": "workspaceControl.exportJson",
+        "title": "Workspace Control: Exportar para JSON...",
+        "icon": "$(export)"
+      },
+      {
+        "command": "workspaceControl.importJson",
+        "title": "Workspace Control: Importar de JSON...",
+        "icon": "$(cloud-download)"
+      },
+      {
         "command": "workspaceControl.toggleGrouping",
         "title": "Workspace Control: Alternar agrupamento por tags",
         "icon": "$(list-tree)"
@@ -160,6 +185,11 @@
         "command": "workspaceControl.quickSwitch",
         "key": "ctrl+alt+w",
         "mac": "cmd+alt+w"
+      },
+      {
+        "command": "workspaceControl.openRecent",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
       }
     ],
     "menus": {
@@ -215,6 +245,16 @@
           "command": "workspaceControl.openInNewWindow",
           "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/",
           "group": "inline@2"
+        },
+        {
+          "command": "workspaceControl.pin",
+          "when": "view == workspaceControl.list && viewItem =~ /^workspaceEntry/ && !(viewItem =~ /\\.pinned/)",
+          "group": "1_modify@0"
+        },
+        {
+          "command": "workspaceControl.unpin",
+          "when": "view == workspaceControl.list && viewItem =~ /\\.pinned/",
+          "group": "1_modify@0"
         },
         {
           "command": "workspaceControl.editTags",

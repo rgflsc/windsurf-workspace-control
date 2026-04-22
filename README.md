@@ -14,6 +14,9 @@ Extensão para **Windsurf** (e VS Code) que permite salvar e alternar rapidament
 - **Renomear tag**, **remover tag de todos os workspaces** e **definir cor da tag** pelo menu de contexto do grupo.
 - **Filtro por tag** direto na TreeView (multi-select) com indicador "Filtrando: ..." no topo.
 - **Status bar** mostra ícone + label + tags do workspace atual quando ele estiver salvo; clique abre o alternador.
+- **Favoritos (pinados)**: workspaces fixados aparecem primeiro em cada grupo com prefixo ★.
+- **Recentes**: atalho `Ctrl+Alt+R` abre QuickPick de workspaces ordenados por último acesso.
+- **Exportar / Importar JSON** da lista completa (workspaces + cores de tags).
 - **Revelar no explorador do SO**.
 - **Escopo de armazenamento** global (padrão) ou por workspace.
 
@@ -51,6 +54,9 @@ Depois instale via **"Extensions: Install from VSIX..."** apontando para o arqui
 | Definir cor da tag | Menu de contexto do grupo → **Definir cor da tag...** (10 cores de tema) |
 | Filtrar TreeView por tag | Botão **filter** no topo da view, ou **Workspace Control: Filtrar por tag...** |
 | Limpar filtro | Clique no indicador "Filtrando: ..." no topo, botão **clear-all**, ou **Workspace Control: Limpar filtro** |
+| Fixar / desafixar workspace | Menu de contexto do item → **Fixar no topo** / **Desafixar** |
+| Abrir recente | `Ctrl+Alt+R` (`Cmd+Alt+R` no Mac), ou **Workspace Control: Abrir recente...** |
+| Exportar / importar JSON | **Workspace Control: Exportar para JSON...** / **Importar de JSON...** |
 
 ## Configurações
 

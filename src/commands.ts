@@ -506,6 +506,182 @@ export function registerCommands(
       }
     }
   });
+
+  register('workspaceControl.pin', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    await store.update(entry.id, { pinned: true });
+  });
+
+  register('workspaceControl.unpin', async (arg: unknown) => {
+    const entry = coerceEntry(arg);
+    if (!entry) {
+      return;
+    }
+    await store.update(entry.id, { pinned: false });
+  });
+
+  register('workspaceControl.openRecent', async () => {
+    const items = store
+      .getAll()
+      .filter((e) => !!e.lastOpenedAt)
+      .sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''));
+    if (items.length === 0) {
+      vscode.window.showInformationMessage(
+        'Nenhum workspace foi aberto ainda por esta extensão.'
+      );
+      return;
+    }
+    const pick = await vscode.window.showQuickPick(
+      items.map((entry) => {
+        const tags = normalizeTags(entry.tags);
+        const detailParts = [
+          entry.kind === 'workspaceFile' ? 'Arquivo .code-workspace' : 'Pasta'
+        ];
+        if (tags.length > 0) {
+          detailParts.push(tags.map((t) => `#${t}`).join(' '));
+        }
+        if (entry.lastOpenedAt) {
+          detailParts.push(`aberto ${new Date(entry.lastOpenedAt).toLocaleString()}`);
+        }
+        return {
+          label: `${entry.pinned ? '★ ' : ''}${entry.label}`,
+          description: entry.path,
+          detail: detailParts.join('  •  '),
+          entry
+        };
+      }),
+      {
+        placeHolder: 'Workspaces recentes (mais recente primeiro)',
+        matchOnDescription: true,
+        matchOnDetail: true
+      }
+    );
+    if (!pick) {
+      return;
+    }
+    await openEntry(store, pick.entry);
+  });
+
+  register('workspaceControl.exportJson', async () => {
+    const uri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(
+        path.join(
+          process.env.HOME ?? process.env.USERPROFILE ?? '.',
+          'windsurf-workspace-control-export.json'
+        )
+      ),
+      filters: { JSON: ['json'] },
+      title: 'Exportar workspaces salvos'
+    });
+    if (!uri) {
+      return;
+    }
+    const payload = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      workspaces: store.getAll(),
+      tagColors: colorStore.getAllRaw()
+    };
+    try {
+      await vscode.workspace.fs.writeFile(
+        uri,
+        Buffer.from(JSON.stringify(payload, null, 2), 'utf8')
+      );
+      vscode.window.showInformationMessage(
+        `Exportados ${payload.workspaces.length} workspace(s) para ${uri.fsPath}.`
+      );
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Falha ao exportar: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  });
+
+  register('workspaceControl.importJson', async () => {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: { JSON: ['json'] },
+      title: 'Importar workspaces salvos'
+    });
+    if (!picked || picked.length === 0) {
+      return;
+    }
+    let raw: Buffer;
+    try {
+      raw = Buffer.from(await vscode.workspace.fs.readFile(picked[0]));
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Falha ao ler arquivo: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    let payload: {
+      version?: number;
+      workspaces?: SavedWorkspace[];
+      tagColors?: Record<string, string>;
+    };
+    try {
+      payload = JSON.parse(raw.toString('utf8'));
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `JSON inválido: ${err instanceof Error ? err.message : String(err)}`
+      );
+      return;
+    }
+    const incoming = Array.isArray(payload.workspaces) ? payload.workspaces : [];
+    if (incoming.length === 0 && !payload.tagColors) {
+      vscode.window.showWarningMessage('Arquivo não contém workspaces nem cores.');
+      return;
+    }
+    const mode = await vscode.window.showQuickPick(
+      [
+        { label: 'Mesclar', description: 'Adiciona itens novos (ignora paths já existentes)', value: 'merge' },
+        { label: 'Substituir', description: 'Apaga a lista atual e substitui pelo arquivo', value: 'replace' }
+      ],
+      { placeHolder: 'Como importar?' }
+    );
+    if (!mode) {
+      return;
+    }
+    const sanitized: SavedWorkspace[] = incoming
+      .filter((e) => e && typeof e.path === 'string' && typeof e.label === 'string' && (e.kind === 'folder' || e.kind === 'workspaceFile'))
+      .map((e) => ({
+        id: typeof e.id === 'string' ? e.id : newId(),
+        label: e.label,
+        path: e.path,
+        kind: e.kind,
+        lastOpenedAt: typeof e.lastOpenedAt === 'string' ? e.lastOpenedAt : undefined,
+        tags: normalizeTags(e.tags),
+        pinned: !!e.pinned
+      }));
+    if (mode.value === 'replace') {
+      await store.setAll(sanitized);
+    } else {
+      const existing = store.getAll();
+      const seenPaths = new Set(existing.map((e) => e.path));
+      const merged = [...existing];
+      for (const e of sanitized) {
+        if (!seenPaths.has(e.path)) {
+          merged.push({ ...e, id: newId() });
+          seenPaths.add(e.path);
+        }
+      }
+      await store.setAll(merged);
+    }
+    if (payload.tagColors && typeof payload.tagColors === 'object') {
+      await colorStore.importMap(payload.tagColors, mode.value === 'replace');
+    }
+    vscode.window.showInformationMessage(
+      mode.value === 'replace'
+        ? `Lista substituída: ${sanitized.length} workspace(s).`
+        : `Importados ${sanitized.length} workspace(s) (novos, sem duplicatas).`
+    );
+  });
 }
 
 async function addWorkspaceWithPrompts(

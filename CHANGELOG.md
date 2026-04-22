@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — Favoritos, recentes e export/import
+
+- **Favoritos (pinados)**: novos comandos **Fixar no topo** / **Desafixar** no menu de contexto. Itens pinados aparecem primeiro em cada grupo (ou na lista plana) e ganham prefixo `★` no label + "pinado" na description.
+- **Recentes**: novo comando **Workspace Control: Abrir recente...** com atalho `Ctrl+Alt+R` (`Cmd+Alt+R` no Mac). Abre um QuickPick ordenado pelo `lastOpenedAt` mais recente.
+- **Export/Import JSON**: novos comandos **Exportar para JSON...** e **Importar de JSON...** no Command Palette. Exporta lista de workspaces + mapa de cores de tags. Import pergunta "Mesclar" (adiciona só paths novos) ou "Substituir" (apaga tudo e substitui). Estrutura:
+  ```json
+  { "version": 1, "workspaces": [...], "tagColors": { "tag": "colorId" } }
+  ```
+
 ## 0.3.5
 
 - Fix: itens inline (abrir nesta/nova janela) e menus de contexto voltam a aparecer também no workspace marcado como "atual". As cláusulas `viewItem == workspaceEntry` passaram para regex `viewItem =~ /^workspaceEntry/`, cobrindo tanto `workspaceEntry` quanto `workspaceEntry.current`.
