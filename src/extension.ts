@@ -12,9 +12,7 @@ export function activate(context: vscode.ExtensionContext): void {
     showCollapseAll: false
   });
 
-  context.subscriptions.push(view, store, {
-    dispose: () => provider
-  });
+  context.subscriptions.push(view, store, provider);
 
   registerCommands(context, store);
 }

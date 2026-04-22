@@ -42,18 +42,39 @@ export class TagGroupTreeItem extends vscode.TreeItem {
 
 export type WorkspaceTreeNode = WorkspaceTreeItem | TagGroupTreeItem;
 
-export class WorkspaceTreeProvider implements vscode.TreeDataProvider<WorkspaceTreeNode> {
+export class WorkspaceTreeProvider
+  implements vscode.TreeDataProvider<WorkspaceTreeNode>, vscode.Disposable
+{
   private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<
     WorkspaceTreeNode | undefined | void
   >();
   public readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
+  private readonly disposables: vscode.Disposable[] = [];
+
   constructor(private readonly store: WorkspaceStore) {
-    store.onDidChange(() => this.onDidChangeTreeDataEmitter.fire());
+    this.disposables.push(
+      store.onDidChange(() => this.onDidChangeTreeDataEmitter.fire()),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (
+          event.affectsConfiguration('workspaceControl.groupByTags') ||
+          event.affectsConfiguration('workspaceControl.storageScope')
+        ) {
+          this.onDidChangeTreeDataEmitter.fire();
+        }
+      })
+    );
   }
 
   public refresh(): void {
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  public dispose(): void {
+    for (const d of this.disposables) {
+      d.dispose();
+    }
+    this.onDidChangeTreeDataEmitter.dispose();
   }
 
   public getTreeItem(element: WorkspaceTreeNode): vscode.TreeItem {
