@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -1010,6 +1010,9 @@ function openExternalTerminalAt(cwd: string): void {
     ['xterm', ['-e', `cd '${cwd.replace(/'/g, "'\\''")}' && $SHELL`]]
   ];
   for (const [cmd, args] of candidates) {
+    if (!isCommandOnPath(cmd)) {
+      continue;
+    }
     try {
       spawn(cmd, args, { detached: true, stdio: 'ignore' }).unref();
       return;
@@ -1018,6 +1021,20 @@ function openExternalTerminalAt(cwd: string): void {
     }
   }
   throw new Error('Nenhum emulador de terminal encontrado no PATH.');
+}
+
+function isCommandOnPath(cmd: string): boolean {
+  // `spawn` emits 'error' asynchronously when a command is missing, so the
+  // try/catch loop above can't detect "not found" on its own. Use a synchronous
+  // lookup via `command -v` (POSIX) to pick the first installed candidate.
+  try {
+    const result = spawnSync('sh', ['-c', `command -v "${cmd.replace(/"/g, '\\"')}"`], {
+      stdio: 'ignore'
+    });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
 }
 
 function sleep(ms: number): Promise<void> {

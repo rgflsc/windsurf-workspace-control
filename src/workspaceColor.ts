@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { SavedWorkspace } from './types';
 import { WorkspaceStore } from './workspaceStore';
+import { findCurrentEntry } from './currentWorkspace';
 
 /**
  * Palette of concrete hex colors used to tint a workspace's UI (titleBar,
@@ -43,7 +43,7 @@ const COLOR_KEYS = [
  * replacing any previously-applied marker set by this extension.
  */
 export async function applyCurrentWorkspaceColor(store: WorkspaceStore): Promise<void> {
-  const current = findCurrentEntryByFolder(store);
+  const current = findCurrentEntry(store);
   await writeWorkspaceColor(current?.color);
 }
 
@@ -53,37 +53,36 @@ async function writeWorkspaceColor(colorId: string | undefined): Promise<void> {
   }
   const cfg = vscode.workspace.getConfiguration('workbench');
   const existing = cfg.get<Record<string, string>>('colorCustomizations') ?? {};
-  const filtered: Record<string, string> = {};
+  const hadMarker = Object.keys(existing).some((k) => k.startsWith(MARKER_PREFIX));
+  const next: Record<string, string> = {};
   for (const [key, value] of Object.entries(existing)) {
-    if (!key.startsWith(MARKER_PREFIX)) {
-      filtered[key] = value;
+    if (key.startsWith(MARKER_PREFIX)) {
+      continue;
     }
+    // If the extension had previously applied a color, its COLOR_KEYS entries
+    // in `existing` were written by us. Drop them before computing the next
+    // state so switching to a different (or no) workspace color clears the
+    // previous tint.
+    if (hadMarker && (COLOR_KEYS as readonly string[]).includes(key)) {
+      continue;
+    }
+    next[key] = value;
   }
   const opt = colorId
     ? WORKSPACE_COLOR_OPTIONS.find((o) => o.id === colorId)
     : undefined;
-  let next: Record<string, string> = filtered;
   if (opt?.hex) {
     const accent = opt.hex;
     const fg = pickForeground(accent);
-    next = {
-      ...filtered,
-      [`${MARKER_PREFIX}.id`]: opt.id,
-      'titleBar.activeBackground': accent,
-      'titleBar.activeForeground': fg,
-      'titleBar.inactiveBackground': accent,
-      'titleBar.inactiveForeground': fg,
-      'activityBar.background': accent,
-      'activityBar.foreground': fg,
-      'statusBar.background': accent,
-      'statusBar.foreground': fg
-    };
-  } else {
-    for (const key of COLOR_KEYS) {
-      if (key in next && !(key in filtered)) {
-        delete (next as Record<string, string>)[key];
-      }
-    }
+    next[`${MARKER_PREFIX}.id`] = opt.id;
+    next['titleBar.activeBackground'] = accent;
+    next['titleBar.activeForeground'] = fg;
+    next['titleBar.inactiveBackground'] = accent;
+    next['titleBar.inactiveForeground'] = fg;
+    next['activityBar.background'] = accent;
+    next['activityBar.foreground'] = fg;
+    next['statusBar.background'] = accent;
+    next['statusBar.foreground'] = fg;
   }
   if (shallowEqual(existing, next)) {
     return;
@@ -93,15 +92,6 @@ async function writeWorkspaceColor(colorId: string | undefined): Promise<void> {
     next,
     vscode.ConfigurationTarget.Workspace
   );
-}
-
-function findCurrentEntryByFolder(store: WorkspaceStore): SavedWorkspace | undefined {
-  const folders = vscode.workspace.workspaceFolders;
-  if (!folders || folders.length === 0) {
-    return undefined;
-  }
-  const paths = new Set(folders.map((f) => f.uri.fsPath));
-  return store.getAll().find((e) => paths.has(e.path));
 }
 
 function hasWorkspace(): boolean {
