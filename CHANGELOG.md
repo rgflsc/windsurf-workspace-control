@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3
+
+- Tooltip dos itens da árvore enxuto: removidos o nome/label, `Tipo:`, `Tags:` e `Nome do item:`. Mantidos apenas path, git, marcadores de pinado/atual e último acesso.
+
 ## 0.5.2
 
 - Remove os comandos **Mover para cima** / **Mover para baixo** (e o método `move` do store). A árvore é sempre ordenada automaticamente (pinados primeiro, depois alfabética), então esses comandos eram dead code desde a v0.3.3.
