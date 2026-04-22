@@ -10,6 +10,8 @@ export interface SavedWorkspace {
   lastOpenedAt?: string;
   /** Free-form grouping tags. Normalized to trimmed, non-empty strings. */
   tags?: string[];
+  /** When true, the workspace is pinned to the top of its group/flat list. */
+  pinned?: boolean;
 }
 
 export const UNTAGGED = '__untagged__';

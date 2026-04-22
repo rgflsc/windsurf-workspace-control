@@ -73,6 +73,23 @@ export class TagColorStore implements vscode.Disposable {
     await this.writeMap(next);
   }
 
+  /** Snapshot of the raw map for serialization. */
+  public getAllRaw(): TagColorMap {
+    return this.readMap();
+  }
+
+  /** Bulk load a map (e.g. during import). Replaces or merges depending on flag. */
+  public async importMap(map: TagColorMap, replace: boolean): Promise<void> {
+    const sanitized: TagColorMap = {};
+    for (const [tag, color] of Object.entries(map)) {
+      if (typeof tag !== 'string' || typeof color !== 'string') continue;
+      if (!TAG_COLOR_OPTIONS.find((o) => o.id === color) || color === 'none') continue;
+      sanitized[tag.toLowerCase()] = color;
+    }
+    const next = replace ? sanitized : { ...this.readMap(), ...sanitized };
+    await this.writeMap(next);
+  }
+
   /** Drop entries for tags no longer referenced by any workspace. */
   public async pruneUnknown(activeTagsLower: ReadonlySet<string>): Promise<void> {
     const current = this.readMap();

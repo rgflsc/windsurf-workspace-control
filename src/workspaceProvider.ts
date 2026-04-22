@@ -8,6 +8,7 @@ import { findCurrentEntry } from './currentWorkspace';
 
 const UNTAGGED_LABEL = 'Untagged';
 const CURRENT_MARK = '● ';
+const PINNED_MARK = '★ ';
 
 export class WorkspaceTreeItem extends vscode.TreeItem {
   constructor(
@@ -15,15 +16,20 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     colorStore: TagColorStore,
     isCurrent = false
   ) {
-    super(isCurrent ? `${CURRENT_MARK}${entry.label}` : entry.label, vscode.TreeItemCollapsibleState.None);
+    const isPinned = !!entry.pinned;
+    const prefix = `${isPinned ? PINNED_MARK : ''}${isCurrent ? CURRENT_MARK : ''}`;
+    super(`${prefix}${entry.label}`, vscode.TreeItemCollapsibleState.None);
     this.id = `ws:${entry.id}`;
     const tags = normalizeTags(entry.tags);
     const pathDesc = shortenPath(entry.path);
     const tagsDesc = tags.length > 0 ? `  #${tags.join(' #')}` : '';
-    const currentDesc = isCurrent ? 'atual  •  ' : '';
-    this.description = `${currentDesc}${pathDesc}${tagsDesc}`;
-    this.tooltip = buildTooltip(entry, isCurrent);
-    this.contextValue = isCurrent ? 'workspaceEntry.current' : 'workspaceEntry';
+    const markers: string[] = [];
+    if (isCurrent) markers.push('atual');
+    if (isPinned) markers.push('pinado');
+    const markerDesc = markers.length > 0 ? `${markers.join(' · ')}  •  ` : '';
+    this.description = `${markerDesc}${pathDesc}${tagsDesc}`;
+    this.tooltip = buildTooltip(entry, isCurrent, isPinned);
+    this.contextValue = buildContextValue(isCurrent, isPinned);
     this.resourceUri = vscode.Uri.file(entry.path);
     const iconId = entry.kind === 'workspaceFile' ? 'multiple-windows' : 'folder';
     const firstTagColor = tags.length > 0 ? colorStore.getThemeColor(tags[0]) : undefined;
@@ -36,6 +42,13 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
       arguments: [entry]
     };
   }
+}
+
+function buildContextValue(isCurrent: boolean, isPinned: boolean): string {
+  let value = 'workspaceEntry';
+  if (isPinned) value += '.pinned';
+  if (isCurrent) value += '.current';
+  return value;
 }
 
 export class TagGroupTreeItem extends vscode.TreeItem {
@@ -165,6 +178,8 @@ export class WorkspaceTreeProvider
 }
 
 function byLabel(a: SavedWorkspace, b: SavedWorkspace): number {
+  const pinDelta = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+  if (pinDelta !== 0) return pinDelta;
   return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
 }
 
@@ -220,8 +235,11 @@ function shortenPath(fullPath: string): string {
   return fullPath;
 }
 
-function buildTooltip(entry: SavedWorkspace, isCurrent: boolean): string {
+function buildTooltip(entry: SavedWorkspace, isCurrent: boolean, isPinned: boolean): string {
   const lines = [entry.label, entry.path, `Tipo: ${entry.kind}`];
+  if (isPinned) {
+    lines.push('★ Pinado (aparece sempre no topo)');
+  }
   if (isCurrent) {
     lines.push('Workspace atual desta janela');
   }
