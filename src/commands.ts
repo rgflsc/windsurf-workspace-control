@@ -997,7 +997,11 @@ function openExternalTerminalAt(cwd: string): void {
     // silently. Use the `start` builtin to spawn a new console in the given
     // directory. The empty "" is a required title placeholder so `start`
     // does not treat the first quoted argument as the window title.
-    const safeCwd = cwd.replace(/"/g, '');
+    //
+    // cmd.exe expands `%VAR%` even inside double-quoted strings, so a path
+    // literally containing `%` would be mangled. Double `%` to escape it,
+    // and drop any `"` (not legal in Windows path components anyway).
+    const safeCwd = cwd.replace(/"/g, '').replace(/%/g, '%%');
     spawn(`start "" /D "${safeCwd}" cmd.exe`, {
       shell: true,
       detached: true,
