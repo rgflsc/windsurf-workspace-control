@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5 — Leitura direta de `.git/HEAD` e suporte a worktrees
+
+- **Corrigido**: em alguns setups a description ainda mostrava o literal `HEAD` — acontecia quando o processo da extensão não encontrava o binário `git` na PATH (comum no extension host do Windsurf no Windows). A leitura da branch agora é feita direto do arquivo `<gitdir>/HEAD`, sem shell-out, então não depende do `git` CLI.
+- **Suporte a worktrees/submodules**: quando `.git` é um arquivo `gitdir: ...`, seguimos a indireção pra localizar o HEAD real.
+- `git` continua sendo usado para `dirty` e leitura do remote — onde uma falha cai silenciosamente para "sem info" em vez de quebrar.
+
 ## 0.6.4 — Detecção de branch mais robusta, description só com marcadores
 
 - **Corrigido**: em alguns cenários a description mostrava o SHA do commit em vez do nome da branch. Agora usamos `git symbolic-ref --short HEAD` (fonte autoritativa pro nome da branch) e só caímos pro SHA quando o HEAD está realmente detached — com prefixo `@` (ex.: `@a1b2c3d`) pra deixar claro que não é branch.
