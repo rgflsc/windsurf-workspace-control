@@ -97,30 +97,28 @@ export class GitStatusCache implements vscode.Disposable {
     if (!repoDir) {
       return null;
     }
-    if (!hasGitDir(repoDir)) {
+    const gitDir = await resolveGitDir(repoDir);
+    if (!gitDir) {
       return null;
     }
-    const [symbolic, dirty, rawRemote] = await Promise.all([
-      runGit(['symbolic-ref', '--short', 'HEAD'], repoDir),
+    // Branch detection is done by reading `<gitdir>/HEAD` directly, not by
+    // shelling out. This avoids PATH issues with the bundled `git` CLI on
+    // some platforms (extension host on Windows frequently starts with a
+    // different PATH than the user's terminal) and is faster than spawning
+    // a subprocess. The `git` CLI is still used for dirty state and remote
+    // URL resolution, where it is acceptable to degrade to "no info" on
+    // failure.
+    const [headParsed, dirty, rawRemote] = await Promise.all([
+      readHead(gitDir),
       runGit(['status', '--porcelain'], repoDir),
       readRemoteUrl(repoDir)
     ]);
-    // `git symbolic-ref --short HEAD` is the authoritative source for the
-    // current branch name: it prints the branch when one is checked out,
-    // and exits non-zero when HEAD is detached (commit checkout, mid-rebase,
-    // bisect, etc.). In that case we fall back to a short commit SHA,
-    // prefixed with `@` so users can tell it is not a branch name.
-    let branch: string;
-    if (symbolic !== null && symbolic.trim().length > 0) {
-      branch = symbolic.trim();
-    } else {
-      const shortSha = await runGit(['rev-parse', '--short', 'HEAD'], repoDir);
-      const sha = shortSha?.trim();
-      branch = sha ? `@${sha}` : 'HEAD';
+    if (!headParsed) {
+      return null;
     }
-    this.ensureHeadWatcher(entry.path, repoDir);
+    this.ensureHeadWatcher(entry.path, gitDir);
     return {
-      branch,
+      branch: headParsed,
       dirty: (dirty ?? '').trim().length > 0,
       remoteUrl: rawRemote ?? undefined
     };
@@ -133,11 +131,11 @@ export class GitStatusCache implements vscode.Disposable {
    * if the watch fails (e.g. worktree gitdir file indirection, non-standard
    * layout), we silently fall back to the TTL-based refresh.
    */
-  private ensureHeadWatcher(entryKey: string, repoDir: string): void {
+  private ensureHeadWatcher(entryKey: string, gitDir: string): void {
     if (this.watchers.has(entryKey)) {
       return;
     }
-    const headPath = path.join(repoDir, '.git', 'HEAD');
+    const headPath = path.join(gitDir, 'HEAD');
     try {
       if (!fs.existsSync(headPath)) {
         return;
@@ -185,24 +183,64 @@ function resolveRepoDir(entry: SavedWorkspace): string | null {
   return path.dirname(entry.path);
 }
 
-function hasGitDir(dir: string): boolean {
+/**
+ * Walks up from `dir` looking for a `.git` entry, then resolves it to the
+ * real git directory. `.git` may be either a directory (normal repo) or a
+ * file containing `gitdir: <path>` (linked worktrees, submodules). The
+ * returned path is absolute and has `HEAD`, `config`, etc. at its root.
+ */
+async function resolveGitDir(dir: string): Promise<string | null> {
   let current = dir;
   for (let i = 0; i < 20; i++) {
+    const gitPath = path.join(current, '.git');
     try {
-      const gitPath = path.join(current, '.git');
-      if (fs.existsSync(gitPath)) {
-        return true;
+      const stat = await fs.promises.stat(gitPath);
+      if (stat.isDirectory()) {
+        return gitPath;
+      }
+      if (stat.isFile()) {
+        const content = await fs.promises.readFile(gitPath, 'utf8');
+        const match = /^gitdir:\s*(.+)$/m.exec(content);
+        if (match) {
+          const target = match[1].trim();
+          return path.isAbsolute(target) ? target : path.resolve(current, target);
+        }
+        return null;
       }
     } catch {
-      return false;
+      // Not present here; walk up.
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      return false;
+      return null;
     }
     current = parent;
   }
-  return false;
+  return null;
+}
+
+/**
+ * Reads `<gitDir>/HEAD` and returns a human-readable label for the current
+ * checkout. For a branch, returns the branch name (e.g. `main`). For a
+ * detached HEAD (raw SHA), returns `@<short-sha>`. Returns null only if the
+ * file cannot be read or is malformed — i.e. we never return the literal
+ * string `HEAD` anymore.
+ */
+async function readHead(gitDir: string): Promise<string | null> {
+  try {
+    const raw = (await fs.promises.readFile(path.join(gitDir, 'HEAD'), 'utf8')).trim();
+    const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(raw);
+    if (ref) {
+      return ref[1].trim();
+    }
+    const sha = /^([0-9a-f]{7,40})$/i.exec(raw);
+    if (sha) {
+      return `@${sha[1].slice(0, 7)}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /**
