@@ -992,12 +992,21 @@ function openExternalTerminalAt(cwd: string): void {
     return;
   }
   if (platform === 'win32') {
-    // Spawn cmd.exe directly with `cwd` so we avoid Node's MSVC-style quoting
-    // (which cmd.exe does not understand) — no argument escaping required.
-    spawn('cmd.exe', [], {
+    // A bare `spawn('cmd.exe', …)` from a non-console parent does not create
+    // a visible console window; the child has no stdio attached and exits
+    // silently. Use the `start` builtin to spawn a new console in the given
+    // directory. The empty "" is a required title placeholder so `start`
+    // does not treat the first quoted argument as the window title.
+    //
+    // cmd.exe expands `%VAR%` even inside double-quoted strings, so a path
+    // literally containing `%` would be mangled. Double `%` to escape it,
+    // and drop any `"` (not legal in Windows path components anyway).
+    const safeCwd = cwd.replace(/"/g, '').replace(/%/g, '%%');
+    spawn(`start "" /D "${safeCwd}" cmd.exe`, {
+      shell: true,
       detached: true,
       stdio: 'ignore',
-      cwd
+      windowsHide: false
     }).unref();
     return;
   }
