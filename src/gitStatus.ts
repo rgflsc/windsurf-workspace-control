@@ -250,6 +250,24 @@ async function resolveGitDir(dir: string): Promise<string | null> {
 }
 
 /**
+ * For a linked worktree, `<gitDir>/commondir` contains the relative path to
+ * the main repository's git directory (where `config`, `refs/heads`, etc.
+ * live). For a normal repository the file is absent and the git directory
+ * is already the common directory. Returns an absolute path.
+ */
+async function resolveCommonDir(gitDir: string): Promise<string> {
+  try {
+    const raw = (await fs.promises.readFile(path.join(gitDir, 'commondir'), 'utf8')).trim();
+    if (raw.length === 0) {
+      return gitDir;
+    }
+    return path.isAbsolute(raw) ? raw : path.resolve(gitDir, raw);
+  } catch {
+    return gitDir;
+  }
+}
+
+/**
  * Reads `<gitDir>/HEAD` and returns a human-readable label for the current
  * checkout. For a branch, returns the branch name (e.g. `main`). For a
  * detached HEAD (raw SHA), returns `@<short-sha>`. Returns null only if the
@@ -275,14 +293,20 @@ async function readHead(gitDir: string): Promise<string | null> {
 
 /**
  * Reads the URL of the preferred remote (`origin`, else the first defined
- * remote) by parsing `<gitDir>/config` directly. This is independent of the
- * `git` CLI on PATH, mirroring the file-based HEAD reader. Falls back to
+ * remote) by parsing `<commonDir>/config` directly. This is independent of
+ * the `git` CLI on PATH, mirroring the file-based HEAD reader. Falls back to
  * `null` on any parse or IO error (no remote info shown in the tooltip).
+ *
+ * For linked worktrees, `gitDir` points at `<main>/.git/worktrees/<name>`
+ * which does NOT contain a `config` file — the config with `[remote ...]`
+ * sections lives in the main repository. The `commondir` file inside a
+ * worktree gitdir points to that common directory.
  */
 async function readRemoteUrl(gitDir: string): Promise<string | null> {
+  const commonDir = await resolveCommonDir(gitDir);
   let content: string;
   try {
-    content = await fs.promises.readFile(path.join(gitDir, 'config'), 'utf8');
+    content = await fs.promises.readFile(path.join(commonDir, 'config'), 'utf8');
   } catch {
     return null;
   }

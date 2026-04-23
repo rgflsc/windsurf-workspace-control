@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.8 — Remote URL correto em git worktrees
+
+- **Corrigido**: em git worktrees, a URL do remote não aparecia no tooltip. `<gitDir>` de um worktree aponta para `<main>/.git/worktrees/<nome>`, que não contém `config`; a config com remotes fica no `.git` principal. Agora resolvemos o `commondir` antes de ler o config.
+
 ## 0.6.7 — Cleanup dos debounce timers do watcher de HEAD
 
 - **Corrigido**: os timers de debounce do watcher de `<gitdir>/HEAD` eram guardados no closure do watcher e não eram cancelados em `dispose()`/`invalidate()`. Se um timer disparasse depois do `dispose()`, ele chamava `fire()` num EventEmitter já disposto; depois de um `invalidate()` seguido de refresh, um timer antigo podia apagar a entrada recém-populada do cache. Agora os timers ficam num `Map` no nível da classe e são cancelados corretamente.
