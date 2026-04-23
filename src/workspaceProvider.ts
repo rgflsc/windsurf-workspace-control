@@ -36,10 +36,9 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     if (isPinned) markers.push('pinado');
     if (isArchived) markers.push('arquivado');
     if (git) markers.push(`${git.branch}${git.dirty ? '●' : ''}`);
-    // Path is intentionally omitted from description (visible in the tooltip).
-    const markerDesc = markers.length > 0 ? markers.join(' · ') : '';
-    const tagsDesc = tags.length > 0 ? `#${tags.join(' #')}` : '';
-    this.description = [markerDesc, tagsDesc].filter((s) => s.length > 0).join('  ');
+    // Description shows only markers. Path, tags and notes are in the tooltip;
+    // tag color remains visible via the item icon.
+    this.description = markers.join(' · ');
     this.tooltip = buildTooltip(entry, isCurrent, isPinned, isArchived, git);
     this.contextValue = buildContextValue(isCurrent, isPinned, isArchived);
     this.resourceUri = vscode.Uri.file(entry.path);

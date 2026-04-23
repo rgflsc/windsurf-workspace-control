@@ -100,26 +100,23 @@ export class GitStatusCache implements vscode.Disposable {
     if (!hasGitDir(repoDir)) {
       return null;
     }
-    const [rawBranch, dirty, rawRemote] = await Promise.all([
-      runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoDir),
+    const [symbolic, dirty, rawRemote] = await Promise.all([
+      runGit(['symbolic-ref', '--short', 'HEAD'], repoDir),
       runGit(['status', '--porcelain'], repoDir),
       readRemoteUrl(repoDir)
     ]);
-    if (rawBranch === null) {
-      return null;
-    }
-    const trimmed = rawBranch.trim();
-    // `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD`
-    // when the repo is in detached HEAD state (checkout of a raw SHA,
-    // mid-rebase, bisect, etc.). Show the short commit SHA instead so the
-    // tree doesn't just say "HEAD".
-    let branch = trimmed || 'HEAD';
-    if (branch === 'HEAD') {
+    // `git symbolic-ref --short HEAD` is the authoritative source for the
+    // current branch name: it prints the branch when one is checked out,
+    // and exits non-zero when HEAD is detached (commit checkout, mid-rebase,
+    // bisect, etc.). In that case we fall back to a short commit SHA,
+    // prefixed with `@` so users can tell it is not a branch name.
+    let branch: string;
+    if (symbolic !== null && symbolic.trim().length > 0) {
+      branch = symbolic.trim();
+    } else {
       const shortSha = await runGit(['rev-parse', '--short', 'HEAD'], repoDir);
       const sha = shortSha?.trim();
-      if (sha) {
-        branch = sha;
-      }
+      branch = sha ? `@${sha}` : 'HEAD';
     }
     this.ensureHeadWatcher(entry.path, repoDir);
     return {
@@ -145,11 +142,24 @@ export class GitStatusCache implements vscode.Disposable {
       if (!fs.existsSync(headPath)) {
         return;
       }
+      // Debounce: rebases, pulls and multi-step checkouts can write HEAD
+      // several times in quick succession (including momentarily detached
+      // states). Wait until the filesystem settles before re-reading so we
+      // don't cache a transient SHA as the current branch.
+      let debounceTimer: NodeJS.Timeout | undefined;
       const watcher = fs.watch(headPath, { persistent: false }, () => {
-        this.cache.delete(entryKey);
-        this.onDidChangeEmitter.fire();
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(() => {
+          this.cache.delete(entryKey);
+          this.onDidChangeEmitter.fire();
+        }, 500);
       });
       watcher.on('error', () => {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
         watcher.close();
         this.watchers.delete(entryKey);
       });
