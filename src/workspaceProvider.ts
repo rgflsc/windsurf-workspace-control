@@ -441,7 +441,7 @@ function buildTooltip(
   isArchived: boolean,
   git: GitInfo | null
 ): string {
-  const lines: string[] = [entry.path];
+  const lines: string[] = [entry.path.toLowerCase()];
   if (isPinned) {
     lines.push('★ Pinado (aparece sempre no topo)');
   }
@@ -451,11 +451,8 @@ function buildTooltip(
   if (isCurrent) {
     lines.push('Workspace atual desta janela');
   }
-  if (git) {
-    lines.push(`Git: ${git.branch}${git.dirty ? ' (modificado)' : ''}`);
-    if (git.remoteUrl) {
-      lines.push(`Remote: ${git.remoteUrl}`);
-    }
+  if (git?.remoteUrl) {
+    lines.push(`Remote: ${git.remoteUrl}`);
   }
   if (entry.lastOpenedAt) {
     lines.push(`Último acesso: ${new Date(entry.lastOpenedAt).toLocaleString()}`);
