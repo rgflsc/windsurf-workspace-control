@@ -31,15 +31,15 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     super(`${prefix}${entry.label}`, vscode.TreeItemCollapsibleState.None);
     this.id = `ws:${entry.id}`;
     const tags = normalizeTags(entry.tags);
-    const pathDesc = shortenPath(entry.path);
     const tagsDesc = tags.length > 0 ? `  #${tags.join(' #')}` : '';
     const markers: string[] = [];
     if (isCurrent) markers.push('atual');
     if (isPinned) markers.push('pinado');
     if (isArchived) markers.push('arquivado');
     if (git) markers.push(`${git.branch}${git.dirty ? '●' : ''}`);
-    const markerDesc = markers.length > 0 ? `${markers.join(' · ')}  •  ` : '';
-    this.description = `${markerDesc}${pathDesc}${tagsDesc}`;
+    // Path is intentionally omitted from description (visible in the tooltip).
+    const markerDesc = markers.length > 0 ? markers.join(' · ') : '';
+    this.description = `${markerDesc}${tagsDesc}`;
     this.tooltip = buildTooltip(entry, isCurrent, isPinned, isArchived, git);
     this.contextValue = buildContextValue(isCurrent, isPinned, isArchived);
     this.resourceUri = vscode.Uri.file(entry.path);
@@ -433,14 +433,6 @@ function buildTagGroups(
     );
   }
   return groups;
-}
-
-function shortenPath(fullPath: string): string {
-  const home = process.env.HOME || process.env.USERPROFILE;
-  if (home && fullPath.startsWith(home)) {
-    return '~' + fullPath.slice(home.length);
-  }
-  return fullPath;
 }
 
 function buildTooltip(
