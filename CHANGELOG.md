@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.7 — Cleanup dos debounce timers do watcher de HEAD
+
+- **Corrigido**: os timers de debounce do watcher de `<gitdir>/HEAD` eram guardados no closure do watcher e não eram cancelados em `dispose()`/`invalidate()`. Se um timer disparasse depois do `dispose()`, ele chamava `fire()` num EventEmitter já disposto; depois de um `invalidate()` seguido de refresh, um timer antigo podia apagar a entrada recém-populada do cache. Agora os timers ficam num `Map` no nível da classe e são cancelados corretamente.
+
 ## 0.6.6 — Ajustes no tooltip + remote URL sem dependência de `git` CLI
 
 - **Tooltip**: path do workspace agora é renderizado em minúsculas.
