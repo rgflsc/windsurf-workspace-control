@@ -111,7 +111,7 @@ export class GitStatusCache implements vscode.Disposable {
     const [headParsed, dirty, rawRemote] = await Promise.all([
       readHead(gitDir),
       runGit(['status', '--porcelain'], repoDir),
-      readRemoteUrl(repoDir)
+      readRemoteUrl(gitDir)
     ]);
     if (!headParsed) {
       return null;
@@ -245,29 +245,51 @@ async function readHead(gitDir: string): Promise<string | null> {
 
 /**
  * Reads the URL of the preferred remote (`origin`, else the first defined
- * remote). Asks git first so submodules and worktrees resolve correctly; falls
- * back to reading `.git/config` directly for repos where the `git` CLI is not
- * on PATH.
+ * remote) by parsing `<gitDir>/config` directly. This is independent of the
+ * `git` CLI on PATH, mirroring the file-based HEAD reader. Falls back to
+ * `null` on any parse or IO error (no remote info shown in the tooltip).
  */
-async function readRemoteUrl(repoDir: string): Promise<string | null> {
-  const origin = await runGit(['remote', 'get-url', 'origin'], repoDir);
-  if (origin !== null) {
-    const trimmed = origin.trim();
-    if (trimmed.length > 0) {
-      return toHttpUrl(trimmed);
-    }
+async function readRemoteUrl(gitDir: string): Promise<string | null> {
+  let content: string;
+  try {
+    content = await fs.promises.readFile(path.join(gitDir, 'config'), 'utf8');
+  } catch {
+    return null;
   }
-  const firstRemote = await runGit(['remote'], repoDir);
-  if (firstRemote !== null) {
-    const name = firstRemote.trim().split(/\s+/).find((n) => n.length > 0);
-    if (name) {
-      const url = await runGit(['remote', 'get-url', name], repoDir);
-      if (url !== null && url.trim().length > 0) {
-        return toHttpUrl(url.trim());
+  // Walk the git-config INI, tracking the current section. Section headers
+  // look like `[remote "origin"]`. Lines like `\turl = https://...` belong
+  // to the last seen section. We capture `origin` first, else the first
+  // remote we encounter, so `origin` takes precedence when present.
+  const remotes = new Map<string, string>();
+  let firstRemoteName: string | null = null;
+  let currentRemote: string | null = null;
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith('#') || line.startsWith(';')) {
+      continue;
+    }
+    const sectionMatch = /^\[([^\]"]+)(?:\s+"([^"]*)")?\]$/.exec(line);
+    if (sectionMatch) {
+      if (sectionMatch[1] === 'remote' && sectionMatch[2]) {
+        currentRemote = sectionMatch[2];
+        if (firstRemoteName === null) {
+          firstRemoteName = currentRemote;
+        }
+      } else {
+        currentRemote = null;
       }
+      continue;
+    }
+    if (currentRemote === null) {
+      continue;
+    }
+    const kv = /^url\s*=\s*(.+)$/.exec(line);
+    if (kv && !remotes.has(currentRemote)) {
+      remotes.set(currentRemote, kv[1].trim());
     }
   }
-  return null;
+  const preferred = remotes.get('origin') ?? (firstRemoteName ? remotes.get(firstRemoteName) : undefined);
+  return preferred ? toHttpUrl(preferred) : null;
 }
 
 /**

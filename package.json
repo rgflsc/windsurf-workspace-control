@@ -2,7 +2,7 @@
   "name": "windsurf-workspace-control",
   "displayName": "Workspace Control",
   "description": "Salve, agrupe por tags, filtre e alterne rapidamente entre múltiplos workspaces no Windsurf / VS Code.",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "publisher": "rgflsc",
   "license": "MIT",
   "engines": {

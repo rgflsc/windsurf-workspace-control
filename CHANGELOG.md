@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.6 — Ajustes no tooltip + remote URL sem dependência de `git` CLI
+
+- **Tooltip**: path do workspace agora é renderizado em minúsculas.
+- **Tooltip**: removida a linha `Git: <branch>` (a branch já aparece na description do item da árvore).
+- **Remote URL**: passou a ser lido direto de `<gitdir>/config` (parser INI interno) em vez de `git remote get-url`. Resultado: a URL do repositório aparece mesmo quando o extension host não tem o `git` CLI na PATH.
+
 ## 0.6.5 — Leitura direta de `.git/HEAD` e suporte a worktrees
 
 - **Corrigido**: em alguns setups a description ainda mostrava o literal `HEAD` — acontecia quando o processo da extensão não encontrava o binário `git` na PATH (comum no extension host do Windsurf no Windows). A leitura da branch agora é feita direto do arquivo `<gitdir>/HEAD`, sem shell-out, então não depende do `git` CLI.
