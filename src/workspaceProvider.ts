@@ -462,6 +462,9 @@ function buildTooltip(
   }
   if (git) {
     lines.push(`Git: ${git.branch}${git.dirty ? ' (modificado)' : ''}`);
+    if (git.remoteUrl) {
+      lines.push(`Remote: ${git.remoteUrl}`);
+    }
   }
   if (entry.lastOpenedAt) {
     lines.push(`Último acesso: ${new Date(entry.lastOpenedAt).toLocaleString()}`);
