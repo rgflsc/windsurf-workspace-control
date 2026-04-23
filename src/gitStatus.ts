@@ -26,6 +26,13 @@ const TTL_MS = 30_000;
 export class GitStatusCache implements vscode.Disposable {
   private readonly cache = new Map<string, CachedEntry>();
   private readonly watchers = new Map<string, fs.FSWatcher>();
+  // Debounce timers are kept on the instance (not in the watcher closure)
+  // so that `dispose()` and `invalidate()` can cancel them. A timer that
+  // fires after dispose would otherwise call `fire()` on a disposed
+  // EventEmitter; one that fires after a fresh refresh would wipe the
+  // freshly cached entry.
+  private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
+  private disposed = false;
 
   private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
   public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -56,14 +63,27 @@ export class GitStatusCache implements vscode.Disposable {
         w.close();
         this.watchers.delete(pathOrNothing);
       }
+      this.clearDebounceTimer(pathOrNothing);
     } else {
       this.cache.clear();
       for (const w of this.watchers.values()) {
         w.close();
       }
       this.watchers.clear();
+      for (const t of this.debounceTimers.values()) {
+        clearTimeout(t);
+      }
+      this.debounceTimers.clear();
     }
     this.onDidChangeEmitter.fire();
+  }
+
+  private clearDebounceTimer(entryKey: string): void {
+    const t = this.debounceTimers.get(entryKey);
+    if (t) {
+      clearTimeout(t);
+      this.debounceTimers.delete(entryKey);
+    }
   }
 
   public async refresh(entry: SavedWorkspace): Promise<GitInfo | null> {
@@ -144,20 +164,25 @@ export class GitStatusCache implements vscode.Disposable {
       // several times in quick succession (including momentarily detached
       // states). Wait until the filesystem settles before re-reading so we
       // don't cache a transient SHA as the current branch.
-      let debounceTimer: NodeJS.Timeout | undefined;
       const watcher = fs.watch(headPath, { persistent: false }, () => {
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
+        this.clearDebounceTimer(entryKey);
+        if (this.disposed) {
+          return;
         }
-        debounceTimer = setTimeout(() => {
-          this.cache.delete(entryKey);
-          this.onDidChangeEmitter.fire();
-        }, 500);
+        this.debounceTimers.set(
+          entryKey,
+          setTimeout(() => {
+            this.debounceTimers.delete(entryKey);
+            if (this.disposed) {
+              return;
+            }
+            this.cache.delete(entryKey);
+            this.onDidChangeEmitter.fire();
+          }, 500)
+        );
       });
       watcher.on('error', () => {
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-        }
+        this.clearDebounceTimer(entryKey);
         watcher.close();
         this.watchers.delete(entryKey);
       });
@@ -168,10 +193,15 @@ export class GitStatusCache implements vscode.Disposable {
   }
 
   public dispose(): void {
+    this.disposed = true;
     for (const w of this.watchers.values()) {
       w.close();
     }
     this.watchers.clear();
+    for (const t of this.debounceTimers.values()) {
+      clearTimeout(t);
+    }
+    this.debounceTimers.clear();
     this.onDidChangeEmitter.dispose();
   }
 }
