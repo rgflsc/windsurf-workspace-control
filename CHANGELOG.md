@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.4 — Detecção de branch mais robusta, description só com marcadores
+
+- **Corrigido**: em alguns cenários a description mostrava o SHA do commit em vez do nome da branch. Agora usamos `git symbolic-ref --short HEAD` (fonte autoritativa pro nome da branch) e só caímos pro SHA quando o HEAD está realmente detached — com prefixo `@` (ex.: `@a1b2c3d`) pra deixar claro que não é branch.
+- **Watcher de `.git/HEAD` com debounce de 500ms**: rebase/pull/checkout multi-step escreviam HEAD várias vezes em sequência (incluindo estados transitórios detached), e o cache as vezes congelava em um SHA intermediário. Agora só refrescamos depois que o filesystem assenta.
+- **UI**: removidos os `#tags` da description do item. A cor da tag continua visível no ícone, e o agrupamento por tag segue idêntico.
+
 ## 0.6.3 — Branch refresh, detached HEAD e description mais limpa
 
 - **Corrigido**: a descrição mostrava `HEAD` quando o repo estava em detached HEAD (ex.: durante rebase/`git pull --rebase`, checkout direto de um SHA, bisect). Agora exibimos o SHA curto (`abc1234`) nesse caso.
