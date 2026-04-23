@@ -172,7 +172,10 @@ async function readRemoteUrl(repoDir: string): Promise<string | null> {
  */
 function toHttpUrl(raw: string): string {
   let url = raw;
-  const scpLike = /^([^@]+)@([^:]+):(.+)$/.exec(url);
+  // Negative lookahead (?!\w+:\/\/) avoids matching ssh:// URLs with a port
+  // like `ssh://git@github.com:22/org/repo.git`, which otherwise parse as
+  // SCP-like and produce `https://github.com/22/org/repo`.
+  const scpLike = /^(?!\w+:\/\/)([^@]+)@([^:]+):(.+)$/.exec(url);
   if (scpLike) {
     url = `https://${scpLike[2]}/${scpLike[3]}`;
   } else if (url.startsWith('ssh://')) {
