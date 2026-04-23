@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 — Fix: terminal externo no Windows
+
+- **Corrigido** `Abrir terminal externo aqui` no Windows: o `spawn('cmd.exe', [], { cwd })` da v0.6.0 não criava uma janela de console visível (o `cmd.exe` sem stdio conectado saía silenciosamente). Agora usamos `start "" /D "<cwd>" cmd.exe` via shell para abrir uma nova janela de console no diretório correto.
+
 ## 0.6.0 — Arquivar, notas, descoberta, terminal e cores por workspace
 
 - **Arquivar/desarquivar** workspaces sem deletar. Itens arquivados ficam ocultos por padrão e reaparecem com o toggle `Mostrar arquivados` no topo da view.
