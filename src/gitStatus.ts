@@ -7,6 +7,7 @@ import { SavedWorkspace } from './types';
 export interface GitInfo {
   branch: string;
   dirty: boolean;
+  remoteUrl?: string;
 }
 
 interface CachedEntry {
@@ -89,16 +90,18 @@ export class GitStatusCache implements vscode.Disposable {
     if (!hasGitDir(repoDir)) {
       return null;
     }
-    const [branch, dirty] = await Promise.all([
+    const [branch, dirty, rawRemote] = await Promise.all([
       runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoDir),
-      runGit(['status', '--porcelain'], repoDir)
+      runGit(['status', '--porcelain'], repoDir),
+      readRemoteUrl(repoDir)
     ]);
     if (branch === null) {
       return null;
     }
     return {
       branch: branch.trim() || 'HEAD',
-      dirty: (dirty ?? '').trim().length > 0
+      dirty: (dirty ?? '').trim().length > 0,
+      remoteUrl: rawRemote ?? undefined
     };
   }
 
@@ -132,6 +135,58 @@ function hasGitDir(dir: string): boolean {
     current = parent;
   }
   return false;
+}
+
+/**
+ * Reads the URL of the preferred remote (`origin`, else the first defined
+ * remote). Asks git first so submodules and worktrees resolve correctly; falls
+ * back to reading `.git/config` directly for repos where the `git` CLI is not
+ * on PATH.
+ */
+async function readRemoteUrl(repoDir: string): Promise<string | null> {
+  const origin = await runGit(['remote', 'get-url', 'origin'], repoDir);
+  if (origin !== null) {
+    const trimmed = origin.trim();
+    if (trimmed.length > 0) {
+      return toHttpUrl(trimmed);
+    }
+  }
+  const firstRemote = await runGit(['remote'], repoDir);
+  if (firstRemote !== null) {
+    const name = firstRemote.trim().split(/\s+/).find((n) => n.length > 0);
+    if (name) {
+      const url = await runGit(['remote', 'get-url', name], repoDir);
+      if (url !== null && url.trim().length > 0) {
+        return toHttpUrl(url.trim());
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Normalizes common SSH remote forms (`git@host:org/repo.git`,
+ * `ssh://git@host/org/repo.git`) into browsable `https://` URLs and strips
+ * trailing `.git`. Returns the original string if it does not look like a
+ * supported remote form.
+ */
+function toHttpUrl(raw: string): string {
+  let url = raw;
+  const scpLike = /^([^@]+)@([^:]+):(.+)$/.exec(url);
+  if (scpLike) {
+    url = `https://${scpLike[2]}/${scpLike[3]}`;
+  } else if (url.startsWith('ssh://')) {
+    const rest = url.slice('ssh://'.length);
+    const atIdx = rest.indexOf('@');
+    const hostPath = atIdx >= 0 ? rest.slice(atIdx + 1) : rest;
+    url = `https://${hostPath}`;
+  } else if (url.startsWith('git://')) {
+    url = 'https://' + url.slice('git://'.length);
+  }
+  if (url.endsWith('.git')) {
+    url = url.slice(0, -'.git'.length);
+  }
+  return url;
 }
 
 function runGit(args: string[], cwd: string): Promise<string | null> {

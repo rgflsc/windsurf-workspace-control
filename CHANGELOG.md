@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 — URL do remote git no tooltip
+
+- **Novo**: o tooltip de cada item agora mostra a URL do remote git (`origin`, ou o primeiro remote disponível) quando o workspace é um repositório. URLs SSH (`git@host:org/repo.git`) e `ssh://` são normalizadas para `https://` clicáveis e o sufixo `.git` é removido.
+
 ## 0.6.1 — Fix: terminal externo no Windows
 
 - **Corrigido** `Abrir terminal externo aqui` no Windows: o `spawn('cmd.exe', [], { cwd })` da v0.6.0 não criava uma janela de console visível (o `cmd.exe` sem stdio conectado saía silenciosamente). Agora usamos `start "" /D "<cwd>" cmd.exe` via shell para abrir uma nova janela de console no diretório correto.
