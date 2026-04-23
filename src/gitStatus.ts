@@ -182,7 +182,10 @@ function toHttpUrl(raw: string): string {
     const rest = url.slice('ssh://'.length);
     const atIdx = rest.indexOf('@');
     const hostPath = atIdx >= 0 ? rest.slice(atIdx + 1) : rest;
-    url = `https://${hostPath}`;
+    // Strip an optional SSH port (e.g. github.com:22/org/repo → github.com/org/repo)
+    // so the resulting https:// URL is browsable.
+    const withoutPort = hostPath.replace(/^([^/:]+):\d+(\/.*)$/, '$1$2');
+    url = `https://${withoutPort}`;
   } else if (url.startsWith('git://')) {
     url = 'https://' + url.slice('git://'.length);
   }
