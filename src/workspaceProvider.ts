@@ -31,7 +31,6 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     super(`${prefix}${entry.label}`, vscode.TreeItemCollapsibleState.None);
     this.id = `ws:${entry.id}`;
     const tags = normalizeTags(entry.tags);
-    const tagsDesc = tags.length > 0 ? `  #${tags.join(' #')}` : '';
     const markers: string[] = [];
     if (isCurrent) markers.push('atual');
     if (isPinned) markers.push('pinado');
@@ -39,7 +38,8 @@ export class WorkspaceTreeItem extends vscode.TreeItem {
     if (git) markers.push(`${git.branch}${git.dirty ? '●' : ''}`);
     // Path is intentionally omitted from description (visible in the tooltip).
     const markerDesc = markers.length > 0 ? markers.join(' · ') : '';
-    this.description = `${markerDesc}${tagsDesc}`;
+    const tagsDesc = tags.length > 0 ? `#${tags.join(' #')}` : '';
+    this.description = [markerDesc, tagsDesc].filter((s) => s.length > 0).join('  ');
     this.tooltip = buildTooltip(entry, isCurrent, isPinned, isArchived, git);
     this.contextValue = buildContextValue(isCurrent, isPinned, isArchived);
     this.resourceUri = vscode.Uri.file(entry.path);
