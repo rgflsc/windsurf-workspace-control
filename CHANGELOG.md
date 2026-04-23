@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3 — Branch refresh, detached HEAD e description mais limpa
+
+- **Corrigido**: a descrição mostrava `HEAD` quando o repo estava em detached HEAD (ex.: durante rebase/`git pull --rebase`, checkout direto de um SHA, bisect). Agora exibimos o SHA curto (`abc1234`) nesse caso.
+- **Novo**: a extensão agora observa `<repo>/.git/HEAD` via `fs.watch` e invalida o cache de git status ao detectar troca de branch — antes o `Ctrl+Shift+P → Reload Window` (ou esperar os 30s do TTL) era necessário pra ver o novo branch.
+- **UI**: removido o path do projeto da description (linha ao lado do nome); continua visível no tooltip. Description ficou mais enxuta: só marcadores (atual/pinado/arquivado/git) e tags.
+
 ## 0.6.2 — URL do remote git no tooltip
 
 - **Novo**: o tooltip de cada item agora mostra a URL do remote git (`origin`, ou o primeiro remote disponível) quando o workspace é um repositório. URLs SSH (`git@host:org/repo.git`) e `ssh://` são normalizadas para `https://` clicáveis e o sufixo `.git` é removido.

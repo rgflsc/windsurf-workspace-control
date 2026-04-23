@@ -25,6 +25,7 @@ const TTL_MS = 30_000;
  */
 export class GitStatusCache implements vscode.Disposable {
   private readonly cache = new Map<string, CachedEntry>();
+  private readonly watchers = new Map<string, fs.FSWatcher>();
 
   private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
   public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -50,8 +51,17 @@ export class GitStatusCache implements vscode.Disposable {
   public invalidate(pathOrNothing?: string): void {
     if (pathOrNothing) {
       this.cache.delete(pathOrNothing);
+      const w = this.watchers.get(pathOrNothing);
+      if (w) {
+        w.close();
+        this.watchers.delete(pathOrNothing);
+      }
     } else {
       this.cache.clear();
+      for (const w of this.watchers.values()) {
+        w.close();
+      }
+      this.watchers.clear();
     }
     this.onDidChangeEmitter.fire();
   }
@@ -90,22 +100,70 @@ export class GitStatusCache implements vscode.Disposable {
     if (!hasGitDir(repoDir)) {
       return null;
     }
-    const [branch, dirty, rawRemote] = await Promise.all([
+    const [rawBranch, dirty, rawRemote] = await Promise.all([
       runGit(['rev-parse', '--abbrev-ref', 'HEAD'], repoDir),
       runGit(['status', '--porcelain'], repoDir),
       readRemoteUrl(repoDir)
     ]);
-    if (branch === null) {
+    if (rawBranch === null) {
       return null;
     }
+    const trimmed = rawBranch.trim();
+    // `git rev-parse --abbrev-ref HEAD` returns the literal string `HEAD`
+    // when the repo is in detached HEAD state (checkout of a raw SHA,
+    // mid-rebase, bisect, etc.). Show the short commit SHA instead so the
+    // tree doesn't just say "HEAD".
+    let branch = trimmed || 'HEAD';
+    if (branch === 'HEAD') {
+      const shortSha = await runGit(['rev-parse', '--short', 'HEAD'], repoDir);
+      const sha = shortSha?.trim();
+      if (sha) {
+        branch = sha;
+      }
+    }
+    this.ensureHeadWatcher(entry.path, repoDir);
     return {
-      branch: branch.trim() || 'HEAD',
+      branch,
       dirty: (dirty ?? '').trim().length > 0,
       remoteUrl: rawRemote ?? undefined
     };
   }
 
+  /**
+   * Sets up a filesystem watch on `<repoDir>/.git/HEAD` so the cache is
+   * invalidated as soon as the user switches branches via the CLI (or any
+   * other tool). Multiple watchers per entry are deduplicated. Best-effort:
+   * if the watch fails (e.g. worktree gitdir file indirection, non-standard
+   * layout), we silently fall back to the TTL-based refresh.
+   */
+  private ensureHeadWatcher(entryKey: string, repoDir: string): void {
+    if (this.watchers.has(entryKey)) {
+      return;
+    }
+    const headPath = path.join(repoDir, '.git', 'HEAD');
+    try {
+      if (!fs.existsSync(headPath)) {
+        return;
+      }
+      const watcher = fs.watch(headPath, { persistent: false }, () => {
+        this.cache.delete(entryKey);
+        this.onDidChangeEmitter.fire();
+      });
+      watcher.on('error', () => {
+        watcher.close();
+        this.watchers.delete(entryKey);
+      });
+      this.watchers.set(entryKey, watcher);
+    } catch {
+      // Best-effort; fall back to TTL refresh.
+    }
+  }
+
   public dispose(): void {
+    for (const w of this.watchers.values()) {
+      w.close();
+    }
+    this.watchers.clear();
     this.onDidChangeEmitter.dispose();
   }
 }
