@@ -1,8 +1,14 @@
 import * as vscode from 'vscode';
-import { SavedWorkspace, normalizeTags } from './types';
+import {
+  SavedWorkspace,
+  expandTagsWithAncestors,
+  normalizeTags,
+  TAG_HIERARCHY_SEPARATOR,
+  tagSegments
+} from './types';
 import { WorkspaceStore } from './workspaceStore';
 import { TagColorStore } from './tagColorStore';
-import { FilterState, UNTAGGED_FILTER_KEY } from './filterState';
+import { FilterState } from './filterState';
 import { SearchState } from './searchState';
 import { GitStatusCache, GitInfo } from './gitStatus';
 import { ArchivedVisibilityState } from './archivedState';
@@ -68,26 +74,55 @@ function buildContextValue(
   return value;
 }
 
+/**
+ * A node in the tag-group tree. Holds entries tagged exactly with `tag` (the
+ * full path, e.g. `frontend/web`) plus any nested children that share the
+ * same prefix. The tree view label shows only the leaf segment (e.g. `web`)
+ * so nested groups read naturally; the full path stays accessible via the
+ * `tag` field for filtering, drag-and-drop and command targeting.
+ */
 export class TagGroupTreeItem extends vscode.TreeItem {
   constructor(
     public readonly tag: string,
     public readonly entries: SavedWorkspace[],
+    public readonly children: TagGroupTreeItem[],
     colorStore: TagColorStore,
     collapsed = false
   ) {
+    const segments = tag === UNTAGGED_LABEL ? [UNTAGGED_LABEL] : tagSegments(tag);
+    const label = segments[segments.length - 1] ?? tag;
     super(
-      tag === UNTAGGED_LABEL ? UNTAGGED_LABEL : tag,
+      label,
       collapsed
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.Expanded
     );
     this.id = `tag:${collapsed ? 'c' : 'e'}:${tag.toLowerCase()}`;
-    this.description = `${entries.length}`;
+    // Show direct count and, if relevant, total count including descendants —
+    // useful for parents that group sub-tagged items but have no direct ones.
+    const totalDescendants = countDescendantEntries(this);
+    this.description =
+      totalDescendants > entries.length
+        ? `${entries.length} (${totalDescendants})`
+        : `${entries.length}`;
     this.contextValue = tag === UNTAGGED_LABEL ? 'untaggedGroup' : 'tagGroup';
     const iconId = tag === UNTAGGED_LABEL ? 'question' : 'tag';
     const color = tag === UNTAGGED_LABEL ? undefined : colorStore.getThemeColor(tag);
     this.iconPath = color ? new vscode.ThemeIcon(iconId, color) : new vscode.ThemeIcon(iconId);
+    if (segments.length > 1) {
+      // Tooltip surfaces the full path for parents whose label is just the
+      // leaf segment (e.g. label "web", tooltip "frontend/web").
+      this.tooltip = tag;
+    }
   }
+}
+
+function countDescendantEntries(group: TagGroupTreeItem): number {
+  let total = group.entries.length;
+  for (const child of group.children) {
+    total += countDescendantEntries(child);
+  }
+  return total;
 }
 
 export class FilterIndicatorTreeItem extends vscode.TreeItem {
@@ -225,27 +260,30 @@ export class WorkspaceTreeProvider
     const currentId = findCurrentEntry(this.store)?.id;
     if (element instanceof TagGroupTreeItem) {
       const sourceTag = element.tag === UNTAGGED_LABEL ? null : element.tag;
-      return [...element.entries]
-        .sort(byLabel)
-        .map(
-          (e) =>
-            new WorkspaceTreeItem(
-              e,
-              this.colorStore,
-              e.id === currentId,
-              this.gitStatus.get(e),
-              sourceTag
-            )
-        );
+      const childGroups = element.children;
+      const items = [...element.entries].sort(byLabel).map(
+        (e) =>
+          new WorkspaceTreeItem(
+            e,
+            this.colorStore,
+            e.id === currentId,
+            this.gitStatus.get(e),
+            sourceTag
+          )
+      );
+      return [...childGroups, ...items];
     }
     if (element) {
       return [];
     }
-    const entries = this.store.getAll().filter((e) =>
-      (this.archivedVisibility.isVisible || !e.archived) &&
-      this.filter.matches(normalizeTags(e.tags).map((t) => t.toLowerCase())) &&
-      this.search.matches(e.label, e.path)
-    );
+    const entries = this.store.getAll().filter((e) => {
+      if (!this.archivedVisibility.isVisible && e.archived) return false;
+      const expanded = expandTagsWithAncestors(normalizeTags(e.tags)).map((t) => t.toLowerCase());
+      // expandTagsWithAncestors keeps the empty-list case as empty, so the
+      // existing UNTAGGED_FILTER_KEY branch in FilterState.matches still
+      // covers untagged entries correctly.
+      return this.filter.matches(expanded) && this.search.matches(e.label, e.path);
+    });
 
     const roots: WorkspaceTreeNode[] = [];
     if (this.search.isActive) {
@@ -395,6 +433,17 @@ export function isGroupByTagsEnabled(): boolean {
     .get<boolean>('groupByTags', true);
 }
 
+interface RawNode {
+  fullPath: string;
+  segment: string;
+  directEntries: SavedWorkspace[];
+  children: Map<string, RawNode>;
+}
+
+function makeRawNode(fullPath: string, segment: string): RawNode {
+  return { fullPath, segment, directEntries: [], children: new Map() };
+}
+
 function buildTagGroups(
   entries: SavedWorkspace[],
   colorStore: TagColorStore,
@@ -402,7 +451,7 @@ function buildTagGroups(
   collapsed: boolean
 ): TagGroupTreeItem[] {
   const activeFilterTags = new Set(filter.getActive());
-  const byTag = new Map<string, SavedWorkspace[]>();
+  const roots = new Map<string, RawNode>();
   const untagged: SavedWorkspace[] = [];
   for (const entry of entries) {
     const tags = normalizeTags(entry.tags);
@@ -411,27 +460,75 @@ function buildTagGroups(
       continue;
     }
     for (const tag of tags) {
-      if (
-        filter.isActive &&
-        !activeFilterTags.has(tag.toLowerCase()) &&
-        !(activeFilterTags.has(UNTAGGED_FILTER_KEY) && tags.length === 0)
-      ) {
-        continue;
+      const segments = tagSegments(tag);
+      if (segments.length === 0) continue;
+      // Filter pruning: when a filter is active, only walk subtrees whose
+      // path matches the filter. We accept the tag if ANY of its prefixes
+      // (including itself) is in the active set, so filtering by `frontend`
+      // keeps `frontend/web` and `frontend/web/react`.
+      if (filter.isActive) {
+        let matched = false;
+        for (let i = 1; i <= segments.length; i++) {
+          const prefix = segments.slice(0, i).join(TAG_HIERARCHY_SEPARATOR).toLowerCase();
+          if (activeFilterTags.has(prefix)) {
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          continue;
+        }
       }
-      const bucket = byTag.get(tag) ?? [];
-      bucket.push(entry);
-      byTag.set(tag, bucket);
+      let parentMap = roots;
+      let accumulated: string[] = [];
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        accumulated = [...accumulated, seg];
+        const fullPath = accumulated.join(TAG_HIERARCHY_SEPARATOR);
+        const key = seg.toLowerCase();
+        let node = parentMap.get(key);
+        if (!node) {
+          node = makeRawNode(fullPath, seg);
+          parentMap.set(key, node);
+        }
+        if (i === segments.length - 1) {
+          node.directEntries.push(entry);
+        }
+        parentMap = node.children;
+      }
     }
   }
-  const groups = [...byTag.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-    .map(([tag, list]) => new TagGroupTreeItem(tag, [...list].sort(byLabel), colorStore, collapsed));
+  const topGroups = [...roots.values()]
+    .sort(byNodeSegment)
+    .map((node) => toTagGroupTreeItem(node, colorStore, collapsed));
   if (untagged.length > 0) {
-    groups.push(
-      new TagGroupTreeItem(UNTAGGED_LABEL, [...untagged].sort(byLabel), colorStore, collapsed)
+    topGroups.push(
+      new TagGroupTreeItem(
+        UNTAGGED_LABEL,
+        [...untagged].sort(byLabel),
+        [],
+        colorStore,
+        collapsed
+      )
     );
   }
-  return groups;
+  return topGroups;
+}
+
+function byNodeSegment(a: RawNode, b: RawNode): number {
+  return a.segment.localeCompare(b.segment, undefined, { sensitivity: 'base' });
+}
+
+function toTagGroupTreeItem(
+  node: RawNode,
+  colorStore: TagColorStore,
+  collapsed: boolean
+): TagGroupTreeItem {
+  const children = [...node.children.values()]
+    .sort(byNodeSegment)
+    .map((child) => toTagGroupTreeItem(child, colorStore, collapsed));
+  const sortedEntries = [...node.directEntries].sort(byLabel);
+  return new TagGroupTreeItem(node.fullPath, sortedEntries, children, colorStore, collapsed);
 }
 
 function buildTooltip(

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — Sub-tags hierárquicas
+
+- Tags com `/` viram níveis aninhados na árvore. Ex.: um workspace com tag `frontend/web/react` aparece em `frontend > web > react`. O label de cada nível mostra só o segmento; o caminho completo fica no tooltip.
+- O contador no grupo mostra `direto` (e, quando há descendentes, `direto (total)`).
+- O filtro por tag agora inclui descendentes: filtrar por `frontend` mantém todos os `frontend/...`.
+- Drag-and-drop num grupo aninhado seta o caminho completo (`frontend/web`) como tag do item.
+- Cor da tag e renomear/remover tag continuam operando sobre a string exata (sem cascata em prefixos).
+
 ## 0.6.8 — Remote URL correto em git worktrees
 
 - **Corrigido**: em git worktrees, a URL do remote não aparecia no tooltip. `<gitDir>` de um worktree aponta para `<main>/.git/worktrees/<nome>`, que não contém `config`; a config com remotes fica no `.git` principal. Agora resolvemos o `commondir` antes de ler o config.
